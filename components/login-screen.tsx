@@ -124,7 +124,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
                 alt="Arthur Jarvis University Logo"
                 width={64}
                 height={64}
-                className="object-contain"
+                className="object-contain drop-shadow-aj-logo rounded-sm"
               />
             </div>
             <CardTitle className="text-2xl font-bold text-aj-accent mb-2">Arthur Jarvis University</CardTitle>
@@ -172,7 +172,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0 hover:bg-gray-100 hover:text-gray-700"
                         onClick={() => setShowPassword(!showPassword)}
                       >
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -237,7 +237,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0 hover:bg-gray-100 hover:text-gray-700"
                         onClick={() => setShowPassword(!showPassword)}
                       >
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -277,3 +277,5 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
     </div>
   )
 }
+
+

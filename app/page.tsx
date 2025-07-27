@@ -25,6 +25,7 @@ import {
   Phone,
   Upload,
   UserCheck,
+  LogOut,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -46,9 +47,9 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [uploadModalOpen, setUploadModalOpen] = useState(false)
   const [selectedUnit, setSelectedUnit] = useState<ClearanceUnit | null>(null)
-  // Add state for fetched clearance units and loading
   const [clearanceUnits, setClearanceUnits] = useState<ClearanceUnit[]>([])
   const [loading, setLoading] = useState(false)
+  const [notifications, setNotifications] = useState<string[]>([])
 
   // Helper: map unit/department name to icon
   const unitIconMap: Record<string, React.ElementType> = {
@@ -144,7 +145,7 @@ export default function App() {
     setCurrentUser(null)
   }
 
-  const handleReceiptUpload = (unit: ClearanceUnit) => {
+  const handleReceiptUpload = async (unit: ClearanceUnit) => {
     setSelectedUnit(unit)
     setUploadModalOpen(true)
   }
@@ -214,42 +215,101 @@ export default function App() {
     }
   }
 
-  // Fetch clearance units for the logged-in student
-  useEffect(() => {
+  // Move fetchClearance function here
+  const fetchClearance = async () => {
     if (!currentUser || currentUser.role !== "student") return;
+    
+    console.log("Fetching clearance for user:", currentUser.id);
     setLoading(true)
-    const fetchClearance = async () => {
-      const { data, error } = await supabase
-        .from("clearance_status")
-        .select(`*, departments (id, name, description, priority)`)
-        .eq("student_id", currentUser.id)
-      if (error) {
-        alert("Failed to fetch clearance status: " + error.message)
-        setLoading(false)
-        return
-      }
-      const mapped = (data || []).map((item: any) => ({
-        id: item.departments?.id || item.id,
-        name: item.departments?.name || "Unknown",
-        icon: getUnitIcon(item.departments?.name || "Unknown"),
-        status: (item.status || "pending").toLowerCase(),
-        amountOwed: item.amount_owed || 0,
-        description: item.departments?.description || "",
-        priority: item.departments?.priority || "medium",
-        rejectionReason: item.rejection_reason || "",
-      }))
-      setClearanceUnits(mapped)
+    
+    const { data, error } = await supabase
+      .from("clearance_status")
+      .select(`*, units (id, name, description, priority)`)
+      .eq("user_id", currentUser.id)
+      
+    console.log("Clearance query result:", { data, error });
+    
+    if (error) {
+      console.error("Database error:", error);
+      alert("Failed to fetch clearance status: " + error.message)
       setLoading(false)
+      return
     }
+    
+    if (!data || data.length === 0) {
+      console.log("No clearance data found for student");
+      setLoading(false)
+      return
+    }
+    
+    const mapped = (data || []).map((item: any) => ({
+      id: item.units?.id || item.id,
+      name: item.units?.name || "Unknown",
+      icon: getUnitIcon(item.units?.name || "Unknown"),
+      status: (item.status || "pending").toLowerCase(),
+      amountOwed: item.amount_owed || 0,
+      description: item.units?.description || "",
+      priority: item.units?.priority || "medium",
+      rejectionReason: item.rejection_reason || "",
+    }))
+    
+    console.log("Mapped clearance units:", mapped);
+    setClearanceUnits(mapped)
+    setLoading(false)
+  }
+
+  // ALL useEffect hooks must be here, before any conditional returns
+  useEffect(() => {
     fetchClearance()
   }, [currentUser])
 
-  // Show login screen if no user is logged in
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== "student") return;
+    
+    const channel = supabase
+      .channel("student-clearance-updates")
+      .on(
+        "postgres_changes",
+        { 
+          event: "*", 
+          schema: "public", 
+          table: "clearance_status",
+          filter: `student_id=eq.${currentUser.id}`
+        },
+        (payload) => {
+          console.log("Clearance status updated:", payload)
+          fetchClearance()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [currentUser])
+
+  useEffect(() => {
+    const previousStatuses = localStorage.getItem('clearance-statuses')
+    if (previousStatuses && clearanceUnits.length > 0) {
+      const prev = JSON.parse(previousStatuses)
+      const newCleared = clearanceUnits.filter(unit => 
+        unit.status === 'cleared' && 
+        prev.find((p: any) => p.id === unit.id)?.status !== 'cleared'
+      )
+      
+      if (newCleared.length > 0) {
+        setNotifications(prev => [...prev, `${newCleared[0].name} clearance approved!`])
+      }
+    }
+    
+    localStorage.setItem('clearance-statuses', JSON.stringify(clearanceUnits))
+  }, [clearanceUnits])
+
+  // NOW you can have conditional returns
   if (!currentUser) {
     return <LoginScreen onLogin={handleLogin} />
   }
 
-  // Show dashboards based on user role/unit
   if (currentUser.role === "staff") {
     if (currentUser.unit === "ict") {
       return <ICTAdminDashboard user={currentUser} onLogout={handleLogout} />
@@ -257,7 +317,6 @@ export default function App() {
     return <AdminDashboard user={currentUser} onLogout={handleLogout} />
   }
 
-  // In the render, show loading spinner/message if loading
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -285,13 +344,13 @@ export default function App() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "cleared":
-        return <Badge className="bg-aj-success text-white">Cleared</Badge>
+        return <Badge variant="default" className="bg-green-500 text-white hover:bg-green-600">Cleared</Badge>
       case "pending":
-        return <Badge className="bg-aj-warning text-white">Pending</Badge>
+        return <Badge variant="default" className="bg-yellow-500 text-white hover:bg-yellow-600">Pending</Badge>
       case "rejected":
-        return <Badge className="bg-aj-danger text-white">Rejected</Badge>
+        return <Badge variant="destructive">Rejected</Badge>
       case "submit_receipt":
-        return <Badge className="bg-aj-accent text-white">Submit Receipt</Badge>
+        return <Badge variant="default" className="bg-blue-500 text-white hover:bg-blue-600">Submit Receipt</Badge>
       default:
         return null
     }
@@ -369,7 +428,7 @@ export default function App() {
                   alt="Arthur Jarvis University Logo"
                   width={32}
                   height={32}
-                  className="object-contain"
+                  className="object-contain drop-shadow-aj-logo rounded-sm"
                 />
               </div>
               <div>
@@ -380,32 +439,19 @@ export default function App() {
 
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center space-x-4">
-              <Button variant="ghost" size="sm" className="text-white hover:bg-white/10">
-                <Bell className="h-4 w-4" />
-                {urgentItems.length > 0 && (
-                  <span className="ml-2 bg-aj-danger text-white text-xs px-2 py-1 rounded-full">
-                    {urgentItems.length}
-                  </span>
-                )}
-              </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="text-white hover:bg-white/10">
+                  <Button variant="ghost" className="text-white hover:bg-white/10 hover:text-white">
                     <User className="h-4 w-4 mr-2" />
                     {currentUser.name}
                     <ChevronDown className="h-4 w-4 ml-2" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuItem>
-                    <User className="h-4 w-4 mr-2" />
-                    Profile
+                <DropdownMenuContent align="end" className="bg-white">
+                  <DropdownMenuItem onClick={handleLogout} className="hover:bg-gray-100">
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Logout
                   </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <Bell className="h-4 w-4 mr-2" />
-                    Notifications
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -420,19 +466,12 @@ export default function App() {
                 </SheetTrigger>
                 <SheetContent side="right" className="bg-aj-primary text-white">
                   <div className="flex flex-col space-y-4 mt-8">
-                    <Button variant="ghost" className="justify-start text-white hover:bg-white/10">
-                      <Bell className="h-4 w-4 mr-2" />
-                      Notifications
-                    </Button>
-                    <Button variant="ghost" className="justify-start text-white hover:bg-white/10">
-                      <User className="h-4 w-4 mr-2" />
-                      Profile
-                    </Button>
                     <Button
                       variant="ghost"
-                      className="justify-start text-white hover:bg-white/10"
+                      className="justify-start text-white hover:bg-white/10 hover:text-white"
                       onClick={handleLogout}
                     >
+                      <LogOut className="h-4 w-4 mr-2" />
                       Logout
                     </Button>
                   </div>
@@ -450,7 +489,7 @@ export default function App() {
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6">
             <div>
               <h1 className="text-3xl font-bold text-aj-primary mb-2">Fee Clearance Status</h1>
-              <p className="text-gray-600">Track your clearance progress across all university departments</p>
+              <p className="text-gray-600">Track your clearance progress across all university departments & units</p>
               <p className="text-sm text-gray-500 mt-1">Track No: {currentUser.trackNo}</p>
             </div>
             <div className="mt-4 lg:mt-0">

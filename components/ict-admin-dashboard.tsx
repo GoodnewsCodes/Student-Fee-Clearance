@@ -42,6 +42,8 @@ import Image from "next/image"
 import { supabase } from "@/lib/supabaseClient"
 import type { Receipt, StudentProfile, ClearanceStatus } from "@/types"
 import { departmentUnits, adminUnits } from "@/components/ui/units"
+import { VerificationScreen } from "@/components/verification-screen"
+import { ReceiptReviewScreen } from "@/components/receipt-review-screen"
 
 // Combined type for user data to be managed in the state
 type UserData = {
@@ -257,40 +259,56 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <nav className="bg-aj-primary text-white shadow-md">
+      <nav className="bg-aj-primary text-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-4">
-              <Image src="/aju-logo.png" alt="AJU Logo" width={40} height={40} />
-              <span className="text-xl font-bold">ICT Admin Dashboard</span>
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 relative">
+                <Image
+                  src="/aju-logo.png"
+                  alt="Arthur Jarvis University Logo"
+                  width={32}
+                  height={32}
+                  className="object-contain drop-shadow-aj-logo rounded-sm"
+                />
+              </div>
+              <div>
+                <span className="text-xl font-semibold hidden sm:block">Arthur Jarvis University</span>
+                <span className="text-lg font-semibold sm:hidden">AJU</span>
+              </div>
             </div>
+
             <div className="hidden md:flex items-center space-x-4">
-              <Badge variant="secondary">ICT Administrator</Badge>
+              <Badge variant="outline" className="text-white border-white">
+                ICT Administrator
+              </Badge>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="hover:bg-white/10">
-                    <User className="h-5 w-5 mr-2" />
-                    <span>{user.username}</span>
+                  <Button variant="ghost" className="text-white hover:bg-white/10 hover:text-white">
+                    <User className="h-4 w-4 mr-2" />
+                    {user.username}
                     <ChevronDown className="h-4 w-4 ml-2" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={onLogout}>
+                <DropdownMenuContent align="end" className="bg-white">
+                  <DropdownMenuItem onClick={onLogout} className="hover:bg-gray-100">
                     <LogOut className="h-4 w-4 mr-2" />
                     Logout
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
+
             <div className="md:hidden">
               <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
                 <SheetTrigger asChild>
-                  <Button variant="ghost" size="icon"><Menu /></Button>
+                  <Button variant="ghost" size="sm" className="text-white hover:bg-white/10 hover:text-white">
+                    <Menu className="h-6 w-6" />
+                  </Button>
                 </SheetTrigger>
-                <SheetContent side="right">
-                  <div className="flex flex-col space-y-4 p-4">
-                    <span className="font-bold text-lg">{user.username}</span>
-                    <Button onClick={onLogout} className="w-full justify-start">
+                <SheetContent side="right" className="bg-aj-primary text-white">
+                  <div className="flex flex-col space-y-4 mt-8">
+                    <Button variant="ghost" className="justify-start text-white hover:bg-white/10 hover:text-white" onClick={onLogout}>
                       <LogOut className="h-4 w-4 mr-2" />
                       Logout
                     </Button>
@@ -304,7 +322,7 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
 
       <main className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
         <Tabs defaultValue="verification" className="w-full">
-          <TabsList className="flex overflow-x-auto w-full gap-2 mb-6">
+          <TabsList className="flex w-full gap-2 mb-6 h-auto">
             <TabsTrigger value="verification"><Search className="h-4 w-4 mr-2" />Verification</TabsTrigger>
             <TabsTrigger value="receipts"><FileText className="h-4 w-4 mr-2" />Receipts</TabsTrigger>
             <TabsTrigger value="register"><UserPlus className="h-4 w-4 mr-2" />Register</TabsTrigger>
@@ -312,78 +330,11 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
           </TabsList>
 
           <TabsContent value="verification">
-            <Card>
-              <CardHeader><CardTitle>Student Clearance Verification</CardTitle></CardHeader>
-              <CardContent>
-                <div className="flex flex-col sm:flex-row gap-4 mb-6">
-                  <Input
-                    placeholder="Enter student registration number (e.g., 23/132025)"
-                    value={searchTrackNo}
-                    onChange={(e) => setSearchTrackNo(e.target.value)}
-                  />
-                  <Button onClick={handleSearch} className="w-full sm:w-auto flex items-center justify-center" disabled={isSearching}>
-                    {isSearching ? (
-                      <>
-                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                        Searching...
-                      </>
-                    ) : 'Search'}
-                  </Button>
-                </div>
-                {selectedStudent && clearanceStatus && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>{selectedStudent.full_name}</CardTitle>
-                      <p className="text-sm text-gray-500">{selectedStudent.registration_number}</p>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {clearanceStatus.map((status) => (
-                          <div key={status.id} className="p-3 border rounded-lg">
-                            <p className="font-semibold">{status.units?.name || 'Unit name not found'}</p>
-                            <Badge variant={status.status === 'Cleared' ? 'default' : 'destructive'}>{status.status}</Badge>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-              </CardContent>
-            </Card>
+            <VerificationScreen user={user} />
           </TabsContent>
 
           <TabsContent value="receipts">
-            <Card>
-              <CardHeader><CardTitle>Pending Receipt Review</CardTitle></CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {receipts.length > 0 ? receipts.map((receipt) => (
-                    <Card key={receipt.id} className="p-4">
-                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
-                        <div className="mb-4 md:mb-0">
-                          <p className="font-bold">{receipt.students.full_name}</p>
-                          <p className="text-sm text-gray-500">Reg No: {receipt.students.registration_number}</p>
-                          <a href={receipt.imageUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">View Receipt</a>
-                        </div>
-                        <div className="flex space-x-2 mt-2 md:mt-0">
-                          <Button size="sm" onClick={() => handleReceiptAction(receipt.id, 'approve')} className="bg-green-500 hover:bg-green-600 flex items-center justify-center" disabled={processingReceiptId === receipt.id}>
-                            {processingReceiptId === receipt.id ? (
-                              <>
-                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                Processing...
-                              </>
-                            ) : 'Approve'}
-                          </Button>
-                          <Button size="sm" variant="destructive" onClick={() => handleReceiptAction(receipt.id, 'reject')} disabled={processingReceiptId === receipt.id}>
-                            {processingReceiptId === receipt.id ? 'Processing...' : 'Reject'}
-                          </Button>
-                        </div>
-                      </div>
-                    </Card>
-                  )) : <p>No pending receipts to review.</p>}
-                </div>
-              </CardContent>
-            </Card>
+            <ReceiptReviewScreen user={user} />
           </TabsContent>
 
           <TabsContent value="register">
@@ -481,3 +432,13 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
     </div>
   )
 }
+
+
+
+
+
+
+
+
+
+

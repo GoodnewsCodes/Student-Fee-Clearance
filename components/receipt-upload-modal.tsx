@@ -56,46 +56,48 @@ export function ReceiptUploadModal({
     setError("");
 
     try {
-      const fileExt = selectedFile.name.split('.').pop();
-      const fileName = `${studentId}_${unitId}_${Date.now()}.${fileExt}`;
-      const filePath = `public/${fileName}`;
+      // Add file validation
+      const fileExt = selectedFile.name.split('.').pop()?.toLowerCase();
+      if (!['jpg', 'jpeg', 'png', 'webp'].includes(fileExt || '')) {
+        throw new Error('Invalid file type. Please use JPG, PNG, or WebP.');
+      }
 
-      // Upload file to Supabase storage
-      const { error: uploadError } = await supabase.storage
-        .from("receipts")
+      const fileName = `${studentId}-${unitId}-${Date.now()}.${fileExt}`;
+      const filePath = `receipts/${fileName}`;
+
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('receipts')
         .upload(filePath, selectedFile);
 
-      if (uploadError) {
-        throw uploadError;
-      }
+      if (uploadError) throw uploadError;
 
-      // Get public URL of the uploaded file
+      // Get public URL
       const { data: urlData } = supabase.storage
-        .from("receipts")
+        .from('receipts')
         .getPublicUrl(filePath);
 
-      if (!urlData.publicUrl) {
-        throw new Error("Could not get public URL for the uploaded file.");
-      }
-
-      // Insert receipt record into the database
+      // Insert with transaction-like behavior
       const { error: insertError } = await supabase.from("receipts").insert({
         student_id: studentId,
         unit_id: unitId,
         imageUrl: urlData.publicUrl,
         status: "pending",
         amount: amount,
+        created_at: new Date().toISOString(),
       });
 
       if (insertError) {
+        // Cleanup uploaded file on database error
+        await supabase.storage.from('receipts').remove([filePath]);
         throw insertError;
       }
 
-      alert("Receipt submitted successfully!");
+      // Use toast instead of alert
+      // toast.success("Receipt submitted successfully!");
       onClose();
       setSelectedFile(null);
     } catch (error: any) {
-      setError(`Upload failed: ${error.message}`);
+      setError(error.message || 'Upload failed. Please try again.');
       console.error("Upload error:", error);
     } finally {
       setUploading(false);
@@ -214,3 +216,4 @@ export function ReceiptUploadModal({
     </Dialog>
   )
 }
+

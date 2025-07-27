@@ -29,6 +29,8 @@ import Image from "next/image"
 import { adminUnits } from "@/components/ui/units"
 import { supabase } from "@/lib/supabaseClient"
 import type { ClearanceStatus, StudentProfile, Unit, Receipt } from "@/types"
+import { VerificationScreen } from "@/components/verification-screen"
+import { ReceiptReviewScreen } from "@/components/receipt-review-screen"
 
 interface ReceiptWithStudent extends Receipt {
   students: StudentProfile
@@ -248,11 +250,12 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
                   alt="Arthur Jarvis University Logo"
                   width={32}
                   height={32}
-                  className="object-contain"
+                  className="object-contain drop-shadow-aj-logo rounded-sm"
                 />
               </div>
               <div>
-                <span className="text-lg font-semibold">Admin Dashboard</span>
+                <span className="text-xl font-semibold hidden sm:block">Arthur Jarvis University</span>
+                <span className="text-lg font-semibold sm:hidden">AJU</span>
               </div>
             </div>
 
@@ -268,8 +271,8 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
                     <ChevronDown className="h-4 w-4 ml-2" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={onLogout}>
+                <DropdownMenuContent align="end" className="bg-white">
+                  <DropdownMenuItem onClick={onLogout} className="hover:bg-gray-100">
                     <LogOut className="h-4 w-4 mr-2" />
                     Logout
                   </DropdownMenuItem>
@@ -280,13 +283,13 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
             <div className="md:hidden">
               <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
                 <SheetTrigger asChild>
-                  <Button variant="ghost" size="sm" className="text-white">
+                  <Button variant="ghost" size="sm" className="text-white hover:bg-white/10 hover:text-white">
                     <Menu className="h-6 w-6" />
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="right" className="bg-aj-primary text-white">
                   <div className="flex flex-col space-y-4 mt-8">
-                    <Button variant="ghost" className="justify-start text-white hover:bg-white/10" onClick={onLogout}>
+                    <Button variant="ghost" className="justify-start text-white hover:bg-white/10 hover:text-white" onClick={onLogout}>
                       <LogOut className="h-4 w-4 mr-2" />
                       Logout
                     </Button>
@@ -300,9 +303,9 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs defaultValue="verification" className="w-full">
-          <TabsList className="flex overflow-x-auto w-full mb-8">
+          <TabsList className="flex w-full mb-8 h-auto">
             {tabsConfig.map((tab) => (
-              <TabsTrigger key={tab.value} value={tab.value} className="flex items-center space-x-2">
+              <TabsTrigger key={tab.value} value={tab.value} className="flex items-center space-x-2 flex-1">
                 <tab.icon className="h-4 w-4" />
                 <span>{tab.label}</span>
               </TabsTrigger>
@@ -310,96 +313,12 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
           </TabsList>
 
           <TabsContent value="verification">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-aj-primary flex items-center">
-                  <Search className="h-5 w-5 mr-2" />
-                  Student Verification
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex space-x-4 mb-6">
-                  <Input
-                    placeholder="Search by Name or Track No..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="flex-1"
-                  />
-                </div>
-
-                {filteredStatuses.length > 0 ? (
-                  <div className="space-y-4">
-                    {filteredStatuses.map((status) => (
-                      <Card key={status.id}>
-                        <CardHeader>
-                          <CardTitle className="flex justify-between items-center text-base">
-                            <span>
-                              {status.students?.full_name} ({status.students?.registration_number})
-                            </span>
-                            <Badge
-                              className={status.status === "Cleared" ? "bg-green-100 text-green-800" : status.status === "Pending" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}
-                            >
-                              {status.departments?.name}: {status.status}
-                            </Badge>
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <p className="text-sm text-gray-600">Email: {status.students?.email}</p>
-                          <p className="text-sm text-gray-500">Last Updated: {new Date(status.updated_at).toLocaleString()}</p>
-                          <div className="mt-4 flex gap-2">
-                            <Button onClick={() => handleUpdateStatus(status.id, 'Cleared')} size="sm" className="bg-green-500 hover:bg-green-600">
-                              <CheckCircle className="h-4 w-4 mr-2" /> Clear
-                            </Button>
-                            <Button onClick={() => handleUpdateStatus(status.id, 'Not Cleared')} size="sm" variant="destructive">
-                              <XCircle className="h-4 w-4 mr-2" /> Reject
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-center text-gray-500 mt-6">No students match your search or none found.</p>
-                )}
-              </CardContent>
-            </Card>
+            <VerificationScreen user={user} />
           </TabsContent>
 
           {(user.unit === "bursary" || user.unit === "accounts") && (
-            <TabsContent value=" ">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Receipt Review</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {receipts.length > 0 ? (
-                      receipts.map((receipt) => (
-                        <Card key={receipt.id}>
-                          <CardContent className="p-4 flex justify-between items-center">
-                            <div>
-                              <p className="font-bold">{receipt.students.full_name}</p>
-                              <p className="text-sm text-gray-500">Reg No: {receipt.students.registration_number}</p>
-                              <p className="text-sm">Unit: {getUnitTitle(receipt.unitId)}</p>
-                              <a href={receipt.imageUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-500 hover:underline">View Receipt</a>
-                            </div>
-                            <div className="flex space-x-2">
-                              <Button onClick={() => handleReceiptAction(receipt.id, "approve")} size="sm" className="bg-green-500 hover:bg-green-600" disabled={processingReceiptId === receipt.id}>
-                                {processingReceiptId === receipt.id ? 'Processing...' : 'Approve'}
-                              </Button>
-                              <Button onClick={() => handleReceiptAction(receipt.id, "reject", prompt("Rejection Reason:") || "")} size="sm" variant="destructive" disabled={processingReceiptId === receipt.id}>
-                                {processingReceiptId === receipt.id ? 'Processing...' : 'Reject'}
-                              </Button>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))
-                    ) : (
-                      <p className="text-center text-gray-500 mt-6">No pending receipts for your unit.</p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+            <TabsContent value="receipts">
+              <ReceiptReviewScreen user={user} />
             </TabsContent>
           )}
 
@@ -481,3 +400,16 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
     </div>
   )
 }
+
+
+
+
+
+
+
+
+
+
+
+
+

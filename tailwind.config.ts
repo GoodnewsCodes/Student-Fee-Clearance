@@ -18,11 +18,26 @@ const config: Config = {
         "2xl": "1400px",
       },
     },
+    fontFamily: {
+      sans: ['Arial', 'Helvetica', 'sans-serif'],
+      serif: ['Georgia', 'serif'],
+      mono: ['ui-monospace', 'SFMono-Regular', 'monospace'],
+    },
+    fontSize: {
+      xs: ['0.8rem', { lineHeight: '1.2rem' }],
+      sm: ['0.95rem', { lineHeight: '1.4rem' }],
+      base: ['1.1rem', { lineHeight: '1.6rem' }],
+      lg: ['1.25rem', { lineHeight: '1.75rem' }],
+      xl: ['1.4rem', { lineHeight: '1.9rem' }],
+      '2xl': ['1.6rem', { lineHeight: '2.1rem' }],
+      '3xl': ['2rem', { lineHeight: '2.5rem' }],
+    },
     extend: {
       colors: {
-        // Arthur Jarvis ERP Color Scheme - Minimal
-        "aj-primary": "#1a237e",
-        "aj-accent": "#ffa200",
+        // Arthur Jarvis ERP Color Scheme - University Colors
+        "aj-primary": "#1a237e", // Blue
+        "aj-secondary": "#ffa200", // Gold from login screen
+        "aj-accent": "#ffa200", // Same gold for consistency
         "aj-background": "#f8fafc",
         "aj-text": "#000000",
         "aj-white": "#ffffff",
@@ -63,6 +78,12 @@ const config: Config = {
           foreground: "hsl(var(--card-foreground))",
         },
       },
+      dropShadow: {
+        'aj-logo': [
+          '0 4px 8px rgba(255, 162, 0, 0.3)',
+          '0 2px 4px rgba(255, 162, 0, 0.2)'
+        ],
+      },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
@@ -88,3 +109,9 @@ const config: Config = {
 } satisfies Config
 
 export default config
+
+
+
+
+
+
