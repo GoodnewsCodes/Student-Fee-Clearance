@@ -63,10 +63,28 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
   useEffect(() => {
     // Fetch initial data
     const fetchReceipts = async () => {
+      // Map admin unit to database unit name
+      const unitName = user.unit === "bursary" ? "Bursary" : 
+                      user.unit === "accounts" ? "Accounts" : 
+                      user.unit === "library" ? "Library" :
+                      user.unit === "hospital" ? "Hospital" :
+                      user.unit === "ict" ? "ICT" :
+                      user.unit === "student_affairs" ? "Student Affairs" :
+                      user.unit === "exams" ? "Exams & Records" :
+                      user.unit === "faculty" ? "Faculty" :
+                      user.unit === "department" ? "Department" :
+                      user.unit === "admissions" ? "Admissions" :
+                      user.unit;
+
       const { data, error } = await supabase
         .from("receipts")
-        .select(`*, students (*)`)
+        .select(`
+          *, 
+          students (*),
+          units!receipts_unit_id_fkey (name)
+        `)
         .eq("status", "pending")
+        .eq("units.name", unitName)
 
       if (error) {
         console.error("Error fetching receipts:", error)
@@ -76,19 +94,55 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
     }
 
     const fetchClearanceStatuses = async () => {
-      const { data, error } = await supabase
-        .from("clearance_status")
-        .select(`
-          *,
-          students (*),
-          units (*)
-        `)
+      try {
+        // Test basic query first
+        console.log("Testing basic clearance_status query...");
+        const { data: testData, error: testError } = await supabase
+          .from("clearance_status")
+          .select("*")
+          .limit(5)
 
-      if (error) {
-        console.error("Error fetching clearance statuses:", error)
-      } else if (data) {
-        setClearanceStatuses(data as any)
-        setFilteredStatuses(data as any)
+        if (testError) {
+          console.error("Basic query failed:", testError);
+          console.error("Error details:", JSON.stringify(testError, null, 2));
+          return
+        }
+
+        console.log("Basic query successful, attempting full query...");
+        // If basic query works, try the full query
+        const { data, error } = await supabase
+          .from("clearance_status")
+          .select(`
+            *,
+            units (
+              id,
+              name
+            )
+          `)
+
+        if (error) {
+          console.error("Error fetching clearance statuses:", error);
+          console.error("Error details:", JSON.stringify(error, null, 2));
+        } else if (data) {
+          // Fetch profiles separately and merge
+          const userIds = [...new Set(data.map(item => item.user_id))];
+          const { data: profilesData } = await supabase
+            .from("profiles")
+            .select("user_id, name, track_no")
+            .in("user_id", userIds);
+
+          // Merge the data
+          const mergedData = data.map(item => ({
+            ...item,
+            profiles: profilesData?.find(profile => profile.user_id === item.user_id)
+          }));
+
+          console.log("Successfully fetched clearance statuses:", mergedData);
+          setClearanceStatuses(mergedData as any)
+          setFilteredStatuses(mergedData as any)
+        }
+      } catch (err) {
+        console.error("Unexpected error in fetchClearanceStatuses:", err);
       }
     }
 
@@ -118,14 +172,14 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
   useEffect(() => {
     const filtered = clearanceStatuses.filter(
       (status) =>
-        status.students?.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        status.students?.registration_number.toLowerCase().includes(searchQuery.toLowerCase())
+        status.profiles?.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        status.profiles?.track_no.toLowerCase().includes(searchQuery.toLowerCase())
     );
     setFilteredStatuses(filtered);
   }, [searchQuery, clearanceStatuses]);
 
 
-  const handleUpdateStatus = async (id: string, newStatus: "Cleared" | "Pending" | "Not Cleared") => {
+  const handleUpdateStatus = async (id: string, newStatus: "Cleared" | "Pending" | "rejected") => {
     setUpdatingStatusId(id);
     const { error } = await supabase
       .from('clearance_status')
@@ -187,7 +241,7 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
         password: newUserData.password,
         options: {
           data: {
-            full_name: newUserData.name,
+            name: newUserData.name,
             role: 'student',
           },
         },
@@ -199,10 +253,10 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
       // 2. Create profile in 'profiles' table
       const { error: profileError } = await supabase.from('profiles').insert({
         user_id: authData.user.id,
-        full_name: newUserData.name,
+        name: newUserData.name,
         email: newUserData.email,
         role: 'student',
-        registration_number: newUserData.trackNo, // Using trackNo as reg number
+        track_no: newUserData.trackNo, // Using trackNo as reg number
       });
 
       if (profileError) throw new Error(profileError.message);
@@ -229,7 +283,6 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
     ...(user.unit === "bursary" || user.unit === "accounts"
       ? [
           { value: "receipts", label: "Receipt Review", icon: FileText },
-          { value: "fees", label: "Fee Management", icon: Edit },
         ]
       : []),
     ...(user.unit === "admissions"
@@ -260,7 +313,7 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
             </div>
 
             <div className="hidden md:flex items-center space-x-4">
-              <Badge variant="outline" className="text-white border-white">
+              <Badge variant="outline" className="text-aj-accent border-aj-accent">
                 {getUnitTitle(user.unit)}
               </Badge>
               <DropdownMenu>
@@ -319,12 +372,6 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
           {(user.unit === "bursary" || user.unit === "accounts") && (
             <TabsContent value="receipts">
               <ReceiptReviewScreen user={user} />
-            </TabsContent>
-          )}
-
-          {(user.unit === "bursary" || user.unit === "accounts") && (
-            <TabsContent value="fees">
-              <FeeManagement userUnit={user.unit} />
             </TabsContent>
           )}
 
@@ -400,6 +447,19 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
     </div>
   )
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

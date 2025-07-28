@@ -113,11 +113,16 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
         },
       ])
 
-      // Fetch pending receipts
+      // Fetch pending receipts for ICT unit only
       const { data, error } = await supabase
         .from("receipts")
-        .select(`*, students (*)`)
+        .select(`
+          *, 
+          students (*),
+          units!receipts_unit_id_fkey (name)
+        `)
         .eq("status", "pending")
+        .eq("units.name", "ICT")
 
       if (error) console.error("Error fetching receipts:", error)
       else setReceipts(data as any)
@@ -152,7 +157,7 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
       const { data: studentData, error: studentError } = await supabase
         .from("students")
         .select("*")
-        .eq("registration_number", searchTrackNo)
+        .eq("track_no", searchTrackNo)
         .single();
 
       if (studentError || !studentData) {
@@ -200,7 +205,7 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
       // Also update the corresponding clearance status
       await supabase
         .from("clearance_status")
-        .update({ status: action === "approve" ? "Cleared" : "Not Cleared" })
+        .update({ status: action === "approve" ? "Cleared" : "rejected" })
         .eq("student_id", data.student_id)
         .eq("unit_id", data.unitId);
 
@@ -223,7 +228,7 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
         password: newUserData.password,
         options: {
           data: {
-            full_name: newUserData.name,
+            name: newUserData.name,
             role: newUserData.role,
           },
         },
@@ -279,7 +284,7 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
             </div>
 
             <div className="hidden md:flex items-center space-x-4">
-              <Badge variant="outline" className="text-white border-white">
+              <Badge variant="outline" className="text-aj-accent border-aj-accent">
                 ICT Administrator
               </Badge>
               <DropdownMenu>
@@ -432,6 +437,9 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
     </div>
   )
 }
+
+
+
 
 
 

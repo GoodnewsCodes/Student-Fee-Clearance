@@ -25,9 +25,10 @@ export function VerificationScreen({ user }: VerificationScreenProps) {
     setIsSearching(true)
     try {
       const { data: studentData, error: studentError } = await supabase
-        .from("students")
+        .from("profiles")
         .select("*")
-        .eq("registration_number", searchTrackNo.trim())
+        .eq("track_no", searchTrackNo.trim())
+        .eq("role", "student")
         .single()
 
       if (studentError || !studentData) {
@@ -45,7 +46,7 @@ export function VerificationScreen({ user }: VerificationScreenProps) {
           *,
           units (*)
         `)
-        .eq("student_id", studentData.id)
+        .eq("user_id", studentData.user_id)
 
       if (clearanceError) {
         console.error("Error fetching clearance data:", clearanceError)
@@ -98,8 +99,8 @@ export function VerificationScreen({ user }: VerificationScreenProps) {
           <div className="space-y-4">
             <Card className="bg-blue-50 border-blue-200">
               <CardContent className="p-4">
-                <h3 className="font-bold text-lg">{searchResult.full_name}</h3>
-                <p className="text-sm text-gray-600">Registration: {searchResult.registration_number}</p>
+                <h3 className="font-bold text-lg">{searchResult.name}</h3>
+                <p className="text-sm text-gray-600">Registration: {searchResult.track_no}</p>
                 <p className="text-sm text-gray-600">Email: {searchResult.email}</p>
                 <p className="text-sm text-gray-600">Department: {searchResult.department}</p>
               </CardContent>
@@ -137,3 +138,7 @@ export function VerificationScreen({ user }: VerificationScreenProps) {
     </Card>
   )
 }
+
+
+
+

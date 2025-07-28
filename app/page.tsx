@@ -181,18 +181,18 @@ export default function App() {
       // 3. Update clearance status to pending
       const { error: statusError } = await supabase
         .from('clearance_status')
-        .update({ status: 'pending' })
+        .update({ status: 'Pending' })
         .eq('student_id', currentUser.id)
         .eq('unit_id', selectedUnit.id)
-  
+
       if (statusError) throw statusError
-  
-      // Refresh clearance status
+
+      // Refresh clearance status to show updated badge
       const { data } = await supabase
         .from('clearance_status')
         .select(`*, units (id, name, description, priority)`)
         .eq('student_id', currentUser.id)
-  
+
       if (data) {
         const mapped = data.map((item: any) => ({
           id: item.units?.id || item.id,
@@ -206,7 +206,7 @@ export default function App() {
         }))
         setClearanceUnits(mapped)
       }
-  
+
       setUploadModalOpen(false)
       setSelectedUnit(null)
     } catch (error) {
@@ -346,7 +346,7 @@ export default function App() {
       case "cleared":
         return <Badge variant="default" className="bg-green-500 text-white hover:bg-green-600">Cleared</Badge>
       case "pending":
-        return <Badge variant="default" className="bg-yellow-500 text-white hover:bg-yellow-600">Pending</Badge>
+        return <Badge variant="default" className="bg-yellow-500 text-white hover:bg-yellow-600">Pending Review</Badge>
       case "rejected":
         return <Badge variant="destructive">Rejected</Badge>
       case "submit_receipt":

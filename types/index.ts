@@ -75,9 +75,10 @@ export interface Department {
 
 export interface StudentProfile {
   id: string // Corresponds to auth.users.id
-  full_name: string
-  registration_number: string
+  name: string // Changed from name
+  track_no: string // Changed from track_no
   email: string
+  department?: string // Add this property
   created_at: string
 }
 
@@ -90,10 +91,14 @@ export interface ClearanceStatus {
   id: string
   student_id: string
   unit_id: string
-  status: "Cleared" | "Pending" | "Not Cleared"
+  status: "Cleared" | "Pending" | "rejected"
   updated_at: string
   // Optional: to hold joined data
   departments?: Department
   students?: StudentProfile
   units?: Unit
+  profiles?: StudentProfile
 }
+
+
+

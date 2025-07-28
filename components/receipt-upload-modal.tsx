@@ -2,12 +2,13 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Upload, X, CheckCircle, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Card, CardContent } from "@/components/ui/card"
 import { supabase } from "@/lib/supabaseClient"
+import { toast } from "sonner"
 
 interface ReceiptUploadModalProps {
   isOpen: boolean
@@ -30,6 +31,35 @@ export function ReceiptUploadModal({
   const [dragActive, setDragActive] = useState(false)
   const [error, setError] = useState<string>("")
   const [uploading, setUploading] = useState(false)
+  const [fees, setFees] = useState<any[]>([])
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchFees();
+    }
+  }, [isOpen, unitName])
+
+  const fetchFees = async () => {
+    try {
+      // Fetch fees from database based on unit
+      const { data: feesData, error } = await supabase
+        .from('fees')
+        .select('*')
+        .or(`unit.eq.${unitName.toLowerCase()},unit.eq.bursary`)
+        .order('name');
+
+      if (error) {
+        console.error('Error fetching fees:', error);
+        setError('Failed to load fees');
+        return;
+      }
+
+      setFees(feesData || []);
+    } catch (error) {
+      console.error('Error fetching fees:', error);
+      setError('Failed to load fees');
+    }
+  };
 
   const handleFileSelect = (file: File) => {
     setError("")
@@ -56,49 +86,88 @@ export function ReceiptUploadModal({
     setError("");
 
     try {
+      // Get current authenticated user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        throw new Error('Not authenticated');
+      }
+
+      // Get the student record for the authenticated user
+      const { data: studentData, error: studentError } = await supabase
+        .from('students')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (studentError || !studentData) {
+        throw new Error('Could not find student record for authenticated user');
+      }
+
       // Add file validation
       const fileExt = selectedFile.name.split('.').pop()?.toLowerCase();
       if (!['jpg', 'jpeg', 'png', 'webp'].includes(fileExt || '')) {
         throw new Error('Invalid file type. Please use JPG, PNG, or WebP.');
       }
 
-      const fileName = `${studentId}-${unitId}-${Date.now()}.${fileExt}`;
+      const fileName = `${studentData.id}-${unitId}-${Date.now()}.${fileExt}`;
       const filePath = `receipts/${fileName}`;
 
+      // Upload to storage
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('receipts')
-        .upload(filePath, selectedFile);
+        .upload(filePath, selectedFile, {
+          cacheControl: '3600',
+          upsert: false
+        });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error("Storage upload error:", uploadError);
+        throw new Error(`Upload failed: ${uploadError.message}`);
+      }
 
       // Get public URL
       const { data: urlData } = supabase.storage
         .from('receipts')
         .getPublicUrl(filePath);
 
-      // Insert with transaction-like behavior
+      // Insert receipt record using the correct student_id
       const { error: insertError } = await supabase.from("receipts").insert({
-        student_id: studentId,
+        student_id: studentData.id,
         unit_id: unitId,
         imageUrl: urlData.publicUrl,
+        file_path: filePath,
         status: "pending",
         amount: amount,
-        created_at: new Date().toISOString(),
       });
 
       if (insertError) {
         // Cleanup uploaded file on database error
         await supabase.storage.from('receipts').remove([filePath]);
-        throw insertError;
+        throw new Error(`Database error: ${insertError.message}`);
       }
 
-      // Use toast instead of alert
-      // toast.success("Receipt submitted successfully!");
+      // Update clearance status to pending after receipt submission
+      const { error: statusError } = await supabase
+        .from('clearance_status')
+        .update({ status: 'pending' })
+        .eq('user_id', user.id)
+        .eq('unit_id', unitId);
+
+      if (statusError) {
+        console.error('Failed to update clearance status:', statusError);
+        // Don't throw error here as receipt was already uploaded successfully
+      }
+
       onClose();
       setSelectedFile(null);
+      
+      // Show success message
+      toast.success("Receipt uploaded successfully!", {
+        description: "Your receipt has been submitted for verification."
+      });
     } catch (error: any) {
-      setError(error.message || 'Upload failed. Please try again.');
       console.error("Upload error:", error);
+      setError(error.message || 'Upload failed. Please try again.');
     } finally {
       setUploading(false);
     }
@@ -216,4 +285,19 @@ export function ReceiptUploadModal({
     </Dialog>
   )
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

@@ -18,13 +18,13 @@ COMMENT ON TABLE public.units IS 'Stores the different administrative units for 
 CREATE TABLE public.students (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
     user_id uuid NOT NULL,
-    full_name character varying NOT NULL,
-    registration_number character varying NOT NULL,
+    name character varying NOT NULL,
+    track_no character varying NOT NULL,
     email character varying NOT NULL,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     CONSTRAINT students_pkey PRIMARY KEY (id),
     CONSTRAINT students_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE,
-    CONSTRAINT students_registration_number_key UNIQUE (registration_number)
+    CONSTRAINT students_track_no_key UNIQUE (track_no)
 );
 COMMENT ON TABLE public.students IS 'Stores student profile information.';
 
@@ -83,8 +83,12 @@ CREATE POLICY "Allow individual and admin access to receipts" ON public.receipts
   FOR SELECT USING (auth.uid() = (SELECT user_id FROM students WHERE id = student_id) OR (SELECT role FROM profiles WHERE user_id = auth.uid()) = 'staff');
 
 -- Policy: Allow students to insert their own receipts.
+DROP POLICY IF EXISTS "Allow individual insert for receipts" ON public.receipts;
+
 CREATE POLICY "Allow individual insert for receipts" ON public.receipts
-  FOR INSERT WITH CHECK (auth.uid() = (SELECT user_id FROM students WHERE id = student_id));
+  FOR INSERT WITH CHECK (
+    auth.uid() = (SELECT user_id FROM public.students WHERE id = student_id)
+  );
 
 -- Policy: Allow admins to update receipts.
 CREATE POLICY "Allow admin update for receipts" ON public.receipts
@@ -111,4 +115,16 @@ INSERT INTO public.units (name, description, priority) VALUES
 ('Hospital', 'Clearance from the university hospital/clinic.', 'low'),
 ('Admissions', 'Handles admission and matriculation clearance.', 'high');
 
+-- Ensure units table has proper names for filtering
+ALTER TABLE public.units ADD CONSTRAINT units_name_key UNIQUE (name);
+INSERT INTO public.units (name, description, priority) VALUES
+('Bursary', 'Financial clearance and fee verification', 'high'),
+('Accounts', 'Account settlement and payment verification', 'high'),
+('Library', 'Library book returns and fine clearance', 'medium'),
+('Hospital', 'Medical clearance and health records', 'medium')
+ON CONFLICT (name) DO NOTHING;
+
 -- End of script.
+
+
+
