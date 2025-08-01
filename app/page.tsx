@@ -26,6 +26,7 @@ import {
   Upload,
   UserCheck,
   LogOut,
+  Key,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -41,6 +42,8 @@ import { ReceiptUploadModal } from "@/components/receipt-upload-modal"
 import { ICTAdminDashboard } from "@/components/ict-admin-dashboard"
 import Image from "next/image"
 import { supabase } from "@/lib/supabaseClient"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<any>(null)
@@ -50,6 +53,14 @@ export default function App() {
   const [clearanceUnits, setClearanceUnits] = useState<ClearanceUnit[]>([])
   const [loading, setLoading] = useState(false)
   const [notifications, setNotifications] = useState<string[]>([])
+  const [showChangePassword, setShowChangePassword] = useState(false)
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: ""
+  })
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
+  const [rejectedReceipts, setRejectedReceipts] = useState<any[]>([])
 
   // Helper: map unit/department name to icon
   const unitIconMap: Record<string, React.ElementType> = {
@@ -145,73 +156,27 @@ export default function App() {
     setCurrentUser(null)
   }
 
-  const handleReceiptUpload = async (unit: ClearanceUnit) => {
-    setSelectedUnit(unit)
-    setUploadModalOpen(true)
-  }
+  const handleChangePassword = async () => {
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      alert("New passwords don't match")
+      return
+    }
 
-  const handleReceiptSubmit = async (file: File) => {
-    if (!selectedUnit || !currentUser) return;
-  
+    setIsChangingPassword(true)
     try {
-      // 1. Upload file to Supabase storage
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${currentUser.id}-${selectedUnit.id}-${Date.now()}.${fileExt}`
-      const filePath = `receipts/${fileName}`
-  
-      const { error: uploadError } = await supabase.storage
-        .from('receipts')
-        .upload(filePath, file)
-  
-      if (uploadError) throw uploadError
-  
-      // 2. Create receipt record in database
-      const { error: receiptError } = await supabase
-        .from('receipts')
-        .insert([{
-          student_id: currentUser.id,
-          unit_id: selectedUnit.id,
-          file_path: filePath,
-          amount: selectedUnit.amountOwed,
-          status: 'pending'
-        }])
-  
-      if (receiptError) throw receiptError
-  
-      // 3. Update clearance status to pending
-      const { error: statusError } = await supabase
-        .from('clearance_status')
-        .update({ status: 'Pending' })
-        .eq('student_id', currentUser.id)
-        .eq('unit_id', selectedUnit.id)
+      const { error } = await supabase.auth.updateUser({
+        password: passwordData.newPassword
+      })
 
-      if (statusError) throw statusError
+      if (error) throw error
 
-      // Refresh clearance status to show updated badge
-      const { data } = await supabase
-        .from('clearance_status')
-        .select(`*, units (id, name, description, priority)`)
-        .eq('student_id', currentUser.id)
-
-      if (data) {
-        const mapped = data.map((item: any) => ({
-          id: item.units?.id || item.id,
-          name: item.units?.name || "Unknown",
-          icon: getUnitIcon(item.units?.name || "Unknown"),
-          status: (item.status || "pending").toLowerCase(),
-          amountOwed: item.amount_owed || 0,
-          description: item.units?.description || "",
-          priority: item.units?.priority || "medium",
-          rejectionReason: item.rejection_reason || "",
-        }))
-        setClearanceUnits(mapped)
-      }
-
-      setUploadModalOpen(false)
-      setSelectedUnit(null)
-    } catch (error) {
-      console.error("Receipt upload error:", error)
-      alert("Failed to upload receipt. Please try again.")
+      alert("Password changed successfully!")
+      setShowChangePassword(false)
+      setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" })
+    } catch (error: any) {
+      alert(`Error changing password: ${error.message}`)
+    } finally {
+      setIsChangingPassword(false)
     }
   }
 
@@ -305,6 +270,24 @@ export default function App() {
     localStorage.setItem('clearance-statuses', JSON.stringify(clearanceUnits))
   }, [clearanceUnits])
 
+  useEffect(() => {
+    const fetchRejectedReceipts = async () => {
+      if (currentUser?.role === 'student') {
+        const { data } = await supabase
+          .from("receipts")
+          .select(`*, fees!receipts_fee_id_fkey (name)`)
+          .eq("student_id", currentUser.id)
+          .eq("status", "rejected")
+        
+        setRejectedReceipts(data || [])
+      }
+    }
+
+    if (currentUser) {
+      fetchRejectedReceipts()
+    }
+  }, [currentUser])
+
   // NOW you can have conditional returns
   if (!currentUser) {
     return <LoginScreen onLogin={handleLogin} />
@@ -344,13 +327,13 @@ export default function App() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "cleared":
-        return <Badge variant="default" className="bg-green-500 text-white hover:bg-green-600">Cleared</Badge>
+        return <Badge variant="default" className="bg-green-500 text-white hover:bg-green-600 whitespace-nowrap">Cleared</Badge>
       case "pending":
-        return <Badge variant="default" className="bg-yellow-500 text-white hover:bg-yellow-600">Pending Review</Badge>
+        return <Badge variant="default" className="bg-yellow-500 text-white hover:bg-yellow-600 whitespace-nowrap">Pending Review</Badge>
       case "rejected":
-        return <Badge variant="destructive">Rejected</Badge>
+        return <Badge variant="destructive" className="whitespace-nowrap">Rejected</Badge>
       case "submit_receipt":
-        return <Badge variant="default" className="bg-blue-500 text-white hover:bg-blue-600">Submit Receipt</Badge>
+        return <Badge variant="default" className="bg-blue-500 text-white hover:bg-blue-600 whitespace-nowrap">Submit Receipt</Badge>
       default:
         return null
     }
@@ -370,39 +353,8 @@ export default function App() {
   }
 
   const getActionButton = (unit: ClearanceUnit) => {
-    switch (unit.status) {
-      case "cleared":
-        return null
-      case "pending":
-        return (
-          <Button className="w-full bg-aj-accent text-white hover:bg-aj-accent/90 font-semibold" disabled>
-            <Clock className="h-4 w-4 mr-2" />
-            Under Review
-          </Button>
-        )
-      case "submit_receipt":
-        return (
-          <Button
-            onClick={() => handleReceiptUpload(unit)}
-            className="w-full bg-aj-accent text-white hover:bg-aj-accent/90 font-semibold"
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            Submit Receipt
-          </Button>
-        )
-      case "rejected":
-        return (
-          <Button
-            onClick={() => handleReceiptUpload(unit)}
-            className="w-full bg-aj-accent text-white hover:bg-aj-accent/90 font-semibold"
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            Submit Again
-          </Button>
-        )
-      default:
-        return null
-    }
+    // Remove all action buttons - students only view status
+    return null;
   }
 
   const clearedCount = clearanceUnits.filter((unit) => unit.status === "cleared").length
@@ -448,6 +400,10 @@ export default function App() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="bg-white">
+                  <DropdownMenuItem onClick={() => setShowChangePassword(true)} className="hover:bg-gray-100">
+                    <Key className="h-4 w-4 mr-2" />
+                    Change Password
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleLogout} className="hover:bg-gray-100">
                     <LogOut className="h-4 w-4 mr-2" />
                     Logout
@@ -577,6 +533,35 @@ export default function App() {
           </Card>
         )}
 
+        {/* Rejected Receipts Notifications */}
+        {rejectedReceipts.length > 0 && (
+          <div className="mb-6 space-y-3">
+            {rejectedReceipts.map((receipt) => (
+              <Card key={receipt.id} className="border-red-200 bg-red-50">
+                <CardContent className="p-4">
+                  <div className="flex items-start space-x-3">
+                    <XCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <h4 className="font-medium text-red-800">Receipt Rejected</h4>
+                      <p className="text-sm text-red-700 mt-1">
+                        Your receipt for <strong>{receipt.fees?.name}</strong> has been rejected.
+                      </p>
+                      {receipt.rejection_reason && (
+                        <p className="text-sm text-red-600 mt-2 font-medium">
+                          Reason: {receipt.rejection_reason}
+                        </p>
+                      )}
+                      <p className="text-xs text-red-600 mt-2">
+                        Please upload a new receipt with the correct information.
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
         {/* Progress Summary */}
         <Card className="mb-8 border border-gray-200">
           <CardHeader>
@@ -636,55 +621,60 @@ export default function App() {
           </CardContent>
         </Card>
 
+        {/* Add this after the progress section, before clearance status cards */}
+        <Card className="mb-8">
+          <CardContent className="p-6">
+            <div className="text-center">
+              <h3 className="text-lg font-semibold mb-2">Submit Payment Receipts</h3>
+              <p className="text-gray-600 mb-4">Upload receipts for fee payments</p>
+              <Button
+                onClick={() => setUploadModalOpen(true)}
+                className="bg-aj-accent text-white hover:bg-aj-accent/90 font-semibold"
+                size="lg"
+              >
+                <Upload className="h-5 w-5 mr-2" />
+                Upload Receipt
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Clearance Status Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           {clearanceUnits.map((unit) => {
             const IconComponent = unit.icon
-
             return (
-              <Card key={unit.id} className="border border-gray-200 hover:shadow-md transition-shadow">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between mb-2">
+              <Card key={unit.id} className="relative overflow-hidden">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center space-x-3">
-                      <div className="p-2 bg-gray-100 rounded-lg">
-                        <IconComponent className="h-5 w-5 text-aj-primary" />
+                      <div className="p-2 rounded-lg bg-aj-primary">
+                        <IconComponent className="h-6 w-6 text-white" />
                       </div>
-                      <div>
-                        <CardTitle className="text-aj-primary text-lg">{unit.name}</CardTitle>
-                        <div className="flex items-center space-x-2 mt-1">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2">
+                          <h3 className="font-semibold text-gray-900">{unit.name}</h3>
                           {getPriorityDot(unit.priority)}
-                          <span className="text-xs text-gray-500 capitalize">{unit.priority} Priority</span>
                         </div>
+                        <p className="text-sm text-gray-500">{unit.description}</p>
                       </div>
                     </div>
-                    {getStatusIcon(unit.status)}
+                    {getStatusBadge(unit.status)}
                   </div>
-                  {getStatusBadge(unit.status)}
-                </CardHeader>
-
-                <CardContent className="space-y-4">
-                  <p className="text-sm text-gray-600">{unit.description}</p>
 
                   {unit.status === "rejected" && unit.rejectionReason && (
-                    <div className="p-3 bg-red-50 rounded-lg border border-red-200">
-                      <p className="text-sm font-medium text-aj-danger mb-1">Rejection Reason:</p>
-                      <p className="text-sm text-red-700">{unit.rejectionReason}</p>
+                    <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                      <p className="text-sm text-red-700">
+                        <strong>Rejection Reason:</strong> {unit.rejectionReason}
+                      </p>
                     </div>
                   )}
 
                   {unit.amountOwed > 0 && (
-                    <div className="p-3 bg-red-50 rounded-lg border border-red-200">
-                      <p className="text-sm text-gray-600">Amount Owed</p>
-                      <p className="text-xl font-bold text-aj-danger">₦{unit.amountOwed.toLocaleString()}</p>
-                    </div>
-                  )}
-
-                  {getActionButton(unit)}
-
-                  {unit.status === "cleared" && (
-                    <div className="text-center py-4">
-                      <CheckCircle className="h-12 w-12 text-aj-success mx-auto mb-2" />
-                      <p className="text-aj-success font-semibold">Clearance Complete</p>
+                    <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-md">
+                      <p className="text-sm text-orange-700">
+                        <strong>Amount Owed:</strong> ₦{unit.amountOwed.toLocaleString()}
+                      </p>
                     </div>
                   )}
                 </CardContent>
@@ -742,16 +732,48 @@ export default function App() {
       </main>
 
       {/* Receipt Upload Modal */}
-      {selectedUnit && (
-        <ReceiptUploadModal
-          isOpen={uploadModalOpen}
-          onClose={() => setUploadModalOpen(false)}
-          unitName={selectedUnit.name}
-          amount={selectedUnit.amountOwed}
-          studentId={currentUser.id}
-          unitId={selectedUnit.id}
-        />
-      )}
+      <ReceiptUploadModal
+        isOpen={uploadModalOpen}
+        onClose={() => setUploadModalOpen(false)}
+        studentId={currentUser.id}
+      />
+
+      {/* Change Password Dialog */}
+      <Dialog open={showChangePassword} onOpenChange={setShowChangePassword}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Change Password</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">New Password</label>
+              <Input
+                type="password"
+                value={passwordData.newPassword}
+                onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
+                placeholder="Enter new password"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Confirm New Password</label>
+              <Input
+                type="password"
+                value={passwordData.confirmPassword}
+                onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                placeholder="Confirm new password"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowChangePassword(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleChangePassword} disabled={isChangingPassword}>
+              {isChangingPassword ? "Changing..." : "Change Password"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

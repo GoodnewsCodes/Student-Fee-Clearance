@@ -13,39 +13,34 @@ import { toast } from "sonner"
 interface ReceiptUploadModalProps {
   isOpen: boolean
   onClose: () => void
-  unitName: string
-  amount: number
   studentId: string
-  unitId: string
 }
 
 export function ReceiptUploadModal({ 
   isOpen, 
   onClose, 
-  unitName, 
-  amount, 
-  studentId,
-  unitId
+  studentId
 }: ReceiptUploadModalProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [dragActive, setDragActive] = useState(false)
   const [error, setError] = useState<string>("")
   const [uploading, setUploading] = useState(false)
   const [fees, setFees] = useState<any[]>([])
+  const [selectedFee, setSelectedFee] = useState<string>("")
+  const [selectedYear, setSelectedYear] = useState<string>("")
+  const [selectedSemester, setSelectedSemester] = useState<string>("")
 
   useEffect(() => {
     if (isOpen) {
       fetchFees();
     }
-  }, [isOpen, unitName])
+  }, [isOpen])
 
   const fetchFees = async () => {
     try {
-      // Fetch fees from database based on unit
       const { data: feesData, error } = await supabase
         .from('fees')
         .select('*')
-        .or(`unit.eq.${unitName.toLowerCase()},unit.eq.bursary`)
         .order('name');
 
       if (error) {
@@ -80,19 +75,20 @@ export function ReceiptUploadModal({
   }
 
   const handleSubmit = async () => {
-    if (!selectedFile) return;
+    if (!selectedFile || !selectedFee || !selectedYear || !selectedSemester) {
+      setError("Please fill all required fields");
+      return;
+    }
 
     setUploading(true);
     setError("");
 
     try {
-      // Get current authenticated user
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) {
         throw new Error('Not authenticated');
       }
 
-      // Get the student record for the authenticated user
       const { data: studentData, error: studentError } = await supabase
         .from('students')
         .select('id')
@@ -103,16 +99,14 @@ export function ReceiptUploadModal({
         throw new Error('Could not find student record for authenticated user');
       }
 
-      // Add file validation
       const fileExt = selectedFile.name.split('.').pop()?.toLowerCase();
       if (!['jpg', 'jpeg', 'png', 'webp'].includes(fileExt || '')) {
         throw new Error('Invalid file type. Please use JPG, PNG, or WebP.');
       }
 
-      const fileName = `${studentData.id}-${unitId}-${Date.now()}.${fileExt}`;
+      const fileName = `${studentData.id}-${selectedFee}-${Date.now()}.${fileExt}`;
       const filePath = `receipts/${fileName}`;
 
-      // Upload to storage
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('receipts')
         .upload(filePath, selectedFile, {
@@ -121,47 +115,38 @@ export function ReceiptUploadModal({
         });
 
       if (uploadError) {
-        console.error("Storage upload error:", uploadError);
         throw new Error(`Upload failed: ${uploadError.message}`);
       }
 
-      // Get public URL
       const { data: urlData } = supabase.storage
         .from('receipts')
         .getPublicUrl(filePath);
 
-      // Insert receipt record using the correct student_id
+      const selectedFeeData = fees.find(f => f.id === selectedFee);
+
       const { error: insertError } = await supabase.from("receipts").insert({
         student_id: studentData.id,
-        unit_id: unitId,
+        fee_id: selectedFee,
         imageUrl: urlData.publicUrl,
         file_path: filePath,
         status: "pending",
-        amount: amount,
+        amount: selectedFeeData?.amount || 0,
+        academic_year: parseInt(selectedYear),
+        semester: selectedSemester,
+        // Remove unit_id from insert
       });
 
       if (insertError) {
-        // Cleanup uploaded file on database error
         await supabase.storage.from('receipts').remove([filePath]);
         throw new Error(`Database error: ${insertError.message}`);
       }
 
-      // Update clearance status to pending after receipt submission
-      const { error: statusError } = await supabase
-        .from('clearance_status')
-        .update({ status: 'pending' })
-        .eq('user_id', user.id)
-        .eq('unit_id', unitId);
-
-      if (statusError) {
-        console.error('Failed to update clearance status:', statusError);
-        // Don't throw error here as receipt was already uploaded successfully
-      }
-
       onClose();
       setSelectedFile(null);
+      setSelectedFee("");
+      setSelectedYear("");
+      setSelectedSemester("");
       
-      // Show success message
       toast.success("Receipt uploaded successfully!", {
         description: "Your receipt has been submitted for verification."
       });
@@ -205,17 +190,59 @@ export function ReceiptUploadModal({
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="text-center">
-            <p className="text-sm text-gray-600">Upload receipt for</p>
-            <p className="font-semibold text-aj-primary">{unitName}</p>
-            <p className="text-lg font-bold text-aj-danger">₦{amount.toLocaleString()}</p>
+          {/* Fee Selection */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Select Fee *</label>
+            <select 
+              value={selectedFee} 
+              onChange={(e) => setSelectedFee(e.target.value)}
+              className="w-full p-2 border rounded-md"
+              required
+            >
+              <option value="">Choose a fee...</option>
+              {fees.map((fee) => (
+                <option key={fee.id} value={fee.id}>
+                  {fee.name} - ₦{fee.amount.toLocaleString()}
+                </option>
+              ))}
+            </select>
           </div>
 
-          <Card
-            className={`border-2 border-dashed transition-colors ${
-              dragActive ? "border-aj-accent bg-orange-50" : "border-gray-300"
-            }`}
-          >
+          {/* Year Selection */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Academic Year *</label>
+            <select 
+              value={selectedYear} 
+              onChange={(e) => setSelectedYear(e.target.value)}
+              className="w-full p-2 border rounded-md"
+              required
+            >
+              <option value="">Select year...</option>
+              {[1,2,3,4,5,6].map(year => (
+                <option key={year} value={year}>Year {year}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Semester Selection */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Semester *</label>
+            <select 
+              value={selectedSemester} 
+              onChange={(e) => setSelectedSemester(e.target.value)}
+              className="w-full p-2 border rounded-md"
+              required
+            >
+              <option value="">Select semester...</option>
+              <option value="first">First Semester</option>
+              <option value="second">Second Semester</option>
+            </select>
+          </div>
+
+          {/* File Upload Area */}
+          <Card className={`border-2 border-dashed transition-colors ${
+            dragActive ? "border-aj-accent bg-orange-50" : "border-gray-300"
+          }`}>
             <CardContent className="p-6">
               <div
                 className="text-center cursor-pointer"
@@ -269,12 +296,12 @@ export function ReceiptUploadModal({
           )}
 
           <div className="flex space-x-3">
-            <Button variant="outline" onClick={onClose} className="flex-1 bg-transparent" disabled={uploading}>
+            <Button variant="outline" onClick={onClose} className="flex-1" disabled={uploading}>
               Cancel
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={!selectedFile || uploading}
+              disabled={!selectedFile || !selectedFee || !selectedYear || !selectedSemester || uploading}
               className="flex-1 bg-aj-accent text-white hover:bg-aj-accent/90"
             >
               {uploading ? "Uploading..." : "Submit Receipt"}
@@ -285,6 +312,10 @@ export function ReceiptUploadModal({
     </Dialog>
   )
 }
+
+
+
+
 
 
 

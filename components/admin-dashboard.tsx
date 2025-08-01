@@ -14,6 +14,7 @@ import {
   UserPlus,
   Download,
   Edit,
+  Key,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -31,6 +32,7 @@ import { supabase } from "@/lib/supabaseClient"
 import type { ClearanceStatus, StudentProfile, Unit, Receipt } from "@/types"
 import { VerificationScreen } from "@/components/verification-screen"
 import { ReceiptReviewScreen } from "@/components/receipt-review-screen"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 
 interface ReceiptWithStudent extends Receipt {
   students: StudentProfile
@@ -58,33 +60,51 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
     trackNo: "",
     email: "",
     password: "12345",
+    department: ""
   })
+  const [showChangePassword, setShowChangePassword] = useState(false)
+  const [passwordData, setPasswordData] = useState({
+    newPassword: "",
+    confirmPassword: ""
+  })
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
+
+  const handleChangePassword = async () => {
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      alert("New passwords don't match")
+      return
+    }
+
+    setIsChangingPassword(true)
+    try {
+      const { supabase } = await import("@/lib/supabaseClient")
+      const { error } = await supabase.auth.updateUser({
+        password: passwordData.newPassword
+      })
+
+      if (error) throw error
+
+      alert("Password changed successfully!")
+      setShowChangePassword(false)
+      setPasswordData({ newPassword: "", confirmPassword: "" })
+    } catch (error: any) {
+      alert(`Error changing password: ${error.message}`)
+    } finally {
+      setIsChangingPassword(false)
+    }
+  }
 
   useEffect(() => {
     // Fetch initial data
     const fetchReceipts = async () => {
-      // Map admin unit to database unit name
-      const unitName = user.unit === "bursary" ? "Bursary" : 
-                      user.unit === "accounts" ? "Accounts" : 
-                      user.unit === "library" ? "Library" :
-                      user.unit === "hospital" ? "Hospital" :
-                      user.unit === "ict" ? "ICT" :
-                      user.unit === "student_affairs" ? "Student Affairs" :
-                      user.unit === "exams" ? "Exams & Records" :
-                      user.unit === "faculty" ? "Faculty" :
-                      user.unit === "department" ? "Department" :
-                      user.unit === "admissions" ? "Admissions" :
-                      user.unit;
-
       const { data, error } = await supabase
         .from("receipts")
         .select(`
           *, 
           students (*),
-          units!receipts_unit_id_fkey (name)
+          fees!receipts_fee_id_fkey (name, amount, unit)
         `)
         .eq("status", "pending")
-        .eq("units.name", unitName)
 
       if (error) {
         console.error("Error fetching receipts:", error)
@@ -196,6 +216,8 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
   const handleReceiptAction = async (receiptId: string, action: "approve" | "reject", reason?: string) => {
     setProcessingReceiptId(receiptId);
     try {
+      const receipt = receipts.find(r => r.id === receiptId);
+      
       const { data, error } = await supabase
         .from("receipts")
         .update({ status: action === "approve" ? "approved" : "rejected", rejection_reason: reason })
@@ -206,20 +228,26 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
         throw new Error(error.message);
       }
 
+      // If rejected, delete from storage
+      if (action === "reject" && receipt?.file_path) {
+        await supabase.storage
+          .from('receipts')
+          .remove([receipt.file_path]);
+      }
+
       // Optimistically update UI
       setReceipts(receipts.filter((r) => r.id !== receiptId));
 
       // If approved, update clearance status
       if (action === "approve" && data && data.length > 0) {
-        const receipt = data[0];
+        const receiptData = data[0];
         const { error: updateError } = await supabase
           .from("clearance_status")
           .update({ status: "Cleared" })
-          .eq("student_id", receipt.student_id)
-          .eq("unit_id", receipt.unit_id); // Assuming unitId in receipt maps to department_id in clearance_status
+          .eq("student_id", receiptData.student_id)
+          .eq("unit_id", receiptData.unit_id);
 
         if (updateError) {
-          // Note: This won't roll back the receipt approval, but will alert the user.
           alert("Receipt approved, but failed to update clearance status: " + updateError.message);
         }
       }
@@ -256,14 +284,24 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
         name: newUserData.name,
         email: newUserData.email,
         role: 'student',
-        track_no: newUserData.trackNo, // Using trackNo as reg number
+        track_no: newUserData.trackNo,
+        department: newUserData.department
       });
 
       if (profileError) throw new Error(profileError.message);
 
+      // 3. Create student record
+      const { error: studentError } = await supabase.from('students').insert({
+        user_id: authData.user.id,
+        name: newUserData.name,
+        track_no: newUserData.trackNo,
+        email: newUserData.email
+      });
+
+      if (studentError) throw new Error(studentError.message);
+
       alert("Student registered successfully!");
-      // Optionally clear the form
-      setNewUserData({ name: "", trackNo: "", email: "", password: "12345" });
+      setNewUserData({ name: "", trackNo: "", email: "", password: "12345", department: "" });
     } catch (error: any) {
       console.error("Error registering user:", error);
       alert(`Registration failed: ${error.message}`);
@@ -276,6 +314,13 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
     const unitItem = adminUnits.find((u) => u.value === unit)
     return unitItem ? unitItem.label : "Officer"
   }
+
+  const getTabName = (unit: string) => {
+    if (unit === "ict" || unit === "bursary" || unit === "accounts") {
+      return "Verification";
+    }
+    return "Clearance";
+  };
 
   // Determine which tabs to show based on user unit
   const tabsConfig = [
@@ -325,6 +370,10 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="bg-white">
+                  <DropdownMenuItem onClick={() => setShowChangePassword(true)} className="hover:bg-gray-100">
+                    <Key className="h-4 w-4 mr-2" />
+                    Change Password
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={onLogout} className="hover:bg-gray-100">
                     <LogOut className="h-4 w-4 mr-2" />
                     Logout
@@ -356,11 +405,10 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs defaultValue="verification" className="w-full">
-          <TabsList className="flex w-full mb-8 h-auto">
+          <TabsList className={`grid w-full grid-cols-${tabsConfig.length}`}>
             {tabsConfig.map((tab) => (
-              <TabsTrigger key={tab.value} value={tab.value} className="flex items-center space-x-2 flex-1">
-                <tab.icon className="h-4 w-4" />
-                <span>{tab.label}</span>
+              <TabsTrigger key={tab.value} value={tab.value}>
+                {tab.label}
               </TabsTrigger>
             ))}
           </TabsList>
@@ -423,6 +471,15 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
                         className="bg-gray-100"
                       />
                     </div>
+
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 mb-2 block">Department</label>
+                      <Input
+                        value={newUserData.department}
+                        onChange={(e) => setNewUserData((prev) => ({ ...prev, department: e.target.value }))}
+                        placeholder="Computer Science"
+                      />
+                    </div>
                   </div>
 
                   <Button onClick={handleRegisterUser} className="mt-6 bg-aj-accent text-white hover:bg-aj-accent/90 flex items-center justify-center" disabled={isRegistering}>
@@ -444,9 +501,66 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
           )}
         </Tabs>
       </div>
+
+      {/* Change Password Dialog */}
+      <Dialog open={showChangePassword} onOpenChange={setShowChangePassword}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Change Password</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">New Password</label>
+              <Input
+                type="password"
+                value={passwordData.newPassword}
+                onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
+                placeholder="Enter new password"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Confirm New Password</label>
+              <Input
+                type="password"
+                value={passwordData.confirmPassword}
+                onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                placeholder="Confirm new password"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowChangePassword(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleChangePassword} disabled={isChangingPassword}>
+              {isChangingPassword ? "Changing..." : "Change Password"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

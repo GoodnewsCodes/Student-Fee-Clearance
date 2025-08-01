@@ -13,6 +13,7 @@ import {
   Users,
   Building,
   GraduationCap,
+  Key,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -44,6 +45,8 @@ import type { Receipt, StudentProfile, ClearanceStatus } from "@/types"
 import { departmentUnits, adminUnits } from "@/components/ui/units"
 import { VerificationScreen } from "@/components/verification-screen"
 import { ReceiptReviewScreen } from "@/components/receipt-review-screen"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { UserManagement } from "./user-management"
 
 // Combined type for user data to be managed in the state
 type UserData = {
@@ -89,6 +92,37 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
   const [processingReceiptId, setProcessingReceiptId] = useState<string | null>(null)
   const [isRegistering, setIsRegistering] = useState(false)
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
+  const [showChangePassword, setShowChangePassword] = useState(false)
+  const [passwordData, setPasswordData] = useState({
+    newPassword: "",
+    confirmPassword: ""
+  })
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
+
+  const handleChangePassword = async () => {
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      alert("New passwords don't match")
+      return
+    }
+
+    setIsChangingPassword(true)
+    try {
+      const { supabase } = await import("@/lib/supabaseClient")
+      const { error } = await supabase.auth.updateUser({
+        password: passwordData.newPassword
+      })
+
+      if (error) throw error
+
+      alert("Password changed successfully!")
+      setShowChangePassword(false)
+      setPasswordData({ newPassword: "", confirmPassword: "" })
+    } catch (error: any) {
+      alert(`Error changing password: ${error.message}`)
+    } finally {
+      setIsChangingPassword(false)
+    }
+  }
 
   // Fetch initial data for receipts and users
   useEffect(() => {
@@ -119,10 +153,9 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
         .select(`
           *, 
           students (*),
-          units!receipts_unit_id_fkey (name)
+          fees!receipts_fee_id_fkey (name, amount, unit)
         `)
         .eq("status", "pending")
-        .eq("units.name", "ICT")
 
       if (error) console.error("Error fetching receipts:", error)
       else setReceipts(data as any)
@@ -149,7 +182,7 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
     }
   }, [])
 
-  // Search for a student by track number
+  // Search for a student by track number or name
   const handleSearch = async () => {
     if (!searchTrackNo) return;
     setIsSearching(true);
@@ -157,7 +190,7 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
       const { data: studentData, error: studentError } = await supabase
         .from("students")
         .select("*")
-        .eq("track_no", searchTrackNo)
+        .or(`track_no.eq.${searchTrackNo},name.ilike.%${searchTrackNo}%`)
         .single();
 
       if (studentError || !studentData) {
@@ -191,6 +224,8 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
   const handleReceiptAction = async (receiptId: string, action: "approve" | "reject") => {
     setProcessingReceiptId(receiptId);
     try {
+      const receipt = receipts.find(r => r.id === receiptId);
+      
       const { data, error } = await supabase
         .from("receipts")
         .update({ status: action === "approve" ? "approved" : "rejected" })
@@ -200,6 +235,13 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
 
       if (error) {
         throw new Error(error.message);
+      }
+
+      // If rejected, delete from storage
+      if (action === "reject" && receipt?.file_path) {
+        await supabase.storage
+          .from('receipts')
+          .remove([receipt.file_path]);
       }
 
       // Also update the corresponding clearance status
@@ -223,7 +265,7 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
   const handleRegisterUser = async () => {
     setIsRegistering(true);
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email: newUserData.email,
         password: newUserData.password,
         options: {
@@ -234,12 +276,40 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
         },
       });
 
-      if (error) {
-        throw new Error(error.message);
+      if (authError) throw new Error(authError.message);
+      if (!authData.user) throw new Error("User not created in Auth");
+
+      // Create profile
+      const profileData = {
+        user_id: authData.user.id,
+        name: newUserData.name,
+        email: newUserData.email,
+        role: newUserData.role,
+        ...(newUserData.role === 'student' ? {
+          track_no: newUserData.trackNo,
+          department: newUserData.department
+        } : {
+          staff_id: newUserData.staffId,
+          unit: newUserData.unit
+        })
+      };
+
+      const { error: profileError } = await supabase.from('profiles').insert(profileData);
+      if (profileError) throw new Error(profileError.message);
+
+      // If student, also create student record
+      if (newUserData.role === 'student') {
+        const { error: studentError } = await supabase.from('students').insert({
+          user_id: authData.user.id,
+          name: newUserData.name,
+          track_no: newUserData.trackNo,
+          email: newUserData.email
+        });
+        if (studentError) throw new Error(studentError.message);
       }
 
       alert("User registered successfully!");
-      // Add to local state or refetch
+      setNewUserData({ name: "", trackNo: "", email: "", password: "12345", role: "student", staffId: "", department: "", unit: "" });
     } catch (error: any) {
       alert("Error registering user: " + error.message);
     } finally {
@@ -329,17 +399,12 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
         <Tabs defaultValue="verification" className="w-full">
           <TabsList className="flex w-full gap-2 mb-6 h-auto">
             <TabsTrigger value="verification"><Search className="h-4 w-4 mr-2" />Verification</TabsTrigger>
-            <TabsTrigger value="receipts"><FileText className="h-4 w-4 mr-2" />Receipts</TabsTrigger>
             <TabsTrigger value="register"><UserPlus className="h-4 w-4 mr-2" />Register</TabsTrigger>
             <TabsTrigger value="manage"><Users className="h-4 w-4 mr-2" />Manage Users</TabsTrigger>
           </TabsList>
 
           <TabsContent value="verification">
             <VerificationScreen user={user} />
-          </TabsContent>
-
-          <TabsContent value="receipts">
-            <ReceiptReviewScreen user={user} />
           </TabsContent>
 
           <TabsContent value="register">
@@ -356,6 +421,15 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
                   </Select>
                   <Input placeholder="Full Name" value={newUserData.name} onChange={(e) => setNewUserData(p => ({ ...p, name: e.target.value }))} />
                   <Input type="email" placeholder="Email Address" value={newUserData.email} onChange={(e) => setNewUserData(p => ({ ...p, email: e.target.value }))} />
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-2 block">Default Password</label>
+                    <Input
+                      type="password"
+                      value={newUserData.password}
+                      onChange={(e) => setNewUserData(p => ({ ...p, password: e.target.value }))}
+                      placeholder="Enter password"
+                    />
+                  </div>
                   {newUserData.role === 'student' ? (
                     <>
                       <Input placeholder="Registration Number" value={newUserData.trackNo} onChange={(e) => setNewUserData(p => ({ ...p, trackNo: e.target.value }))} />
@@ -387,56 +461,23 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
           </TabsContent>
 
           <TabsContent value="manage">
-            <Card>
-              <CardHeader><CardTitle>Manage Users</CardTitle></CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {users.map((u) => (
-                    <Card key={u.id} className="p-3">
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-4">
-                          <div className="p-2 bg-gray-100 rounded-full">
-                            {u.role === 'student' ? <GraduationCap className="h-5 w-5 text-gray-600" /> : <Building className="h-5 w-5 text-gray-600" />}
-                          </div>
-                          <div>
-                            <p className="font-bold">{u.name}</p>
-                            <p className="text-sm text-gray-500">{u.email}</p>
-                          </div>
-                        </div>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700"><Trash2 className="h-4 w-4" /></Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                              <AlertDialogDescription>This will permanently delete the user {u.name}.</AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDeleteUser(u.id)} className="bg-red-600 hover:bg-red-700 flex items-center justify-center" disabled={deletingUserId === u.id}>
-                                {deletingUserId === u.id ? (
-                                  <>
-                                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                    Deleting...
-                                  </>
-                                ) : 'Delete'}
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            <UserManagement currentUser={{ id: user.id, unit: user.unit }} />
           </TabsContent>
         </Tabs>
       </main>
     </div>
   )
 }
+
+
+
+
+
+
+
+
+
+
 
 
 

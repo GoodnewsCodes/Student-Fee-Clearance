@@ -40,11 +40,16 @@ export interface AdminUser extends User {
 export interface Receipt {
   id: string
   studentId: string
-  unitId: string
   imageUrl: string
+  file_path: string
   uploadedAt: Date
   status: "pending" | "approved" | "rejected"
   rejectionReason?: string
+  feeId: string
+  academicYear: number
+  semester: "first" | "second"
+  approvedByBursary?: boolean
+  approvedByAccounts?: boolean
 }
 
 export interface Fee {
@@ -99,6 +104,8 @@ export interface ClearanceStatus {
   units?: Unit
   profiles?: StudentProfile
 }
+
+
 
 
 
