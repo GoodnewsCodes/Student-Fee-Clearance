@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Search, Eye, Download } from "lucide-react"
+import { Search, Eye, Download, CheckCircle, XCircle, Clock, FileText, AlertCircle, CreditCard } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -275,18 +275,138 @@ export function VerificationScreen({ user }: { user: any }) {
                 <CardTitle>Clearance Status</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {clearanceData.map((status) => (
-                    <div key={status.id} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div>
-                        <p className="font-medium">{status.units?.name}</p>
-                        <p className="text-sm text-gray-500">{status.units?.description}</p>
-                      </div>
-                      <Badge variant={status.status === "Cleared" ? "default" : status.status === "rejected" ? "destructive" : "secondary"}>
-                        {status.status}
-                      </Badge>
-                    </div>
-                  ))}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {clearanceData.map((status) => {
+                    const isCleared = status.status === "Cleared"
+                    const isBlocked = status.status === "rejected" || status.status === "Blocked"
+                    const isPending = status.status === "Pending"
+                    
+                    // Determine card background color based on status - lighter shades
+                    const cardBgColor = isCleared
+                      ? "bg-green-100 border-green-200"
+                      : isBlocked
+                      ? "bg-red-100 border-red-200"
+                      : "bg-yellow-100 border-yellow-200"
+                    
+                    // Determine priority (mock data - you can adjust based on your logic)
+                    const priority = isBlocked ? "High Priority" : "Low Priority"
+                    const priorityColor = isBlocked ? "text-red-600" : "text-green-600"
+                    const priorityDot = isBlocked ? "bg-red-500" : "bg-green-500"
+                    
+                    // Mock amount owed (you can fetch this from your database)
+                    const amountOwed = isBlocked ? 5000 : 0
+                    const dueDate = isBlocked ? "15/01/2024" : "10/01/2024"
+                    
+                    return (
+                      <Card key={status.id} className={`${cardBgColor} relative overflow-hidden shadow-sm`}>
+                        <CardContent className="p-6">
+                          {/* Header with unit name and close icon */}
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex items-center space-x-2">
+                              <FileText className={`h-5 w-5 ${isBlocked ? 'text-red-600' : isCleared ? 'text-green-600' : 'text-yellow-600'}`} />
+                              <h3 className="font-semibold text-lg text-gray-900">
+                                {status.units?.name || "Unknown Unit"}
+                              </h3>
+                            </div>
+                            {isBlocked && (
+                              <XCircle className="h-5 w-5 text-red-500" />
+                            )}
+                            {isCleared && (
+                              <CheckCircle className="h-5 w-5 text-green-500" />
+                            )}
+                          </div>
+                          
+                          {/* Priority indicator */}
+                          <div className="flex items-center space-x-2 mb-3">
+                            <div className={`w-2 h-2 rounded-full ${priorityDot}`}></div>
+                            <span className={`text-sm font-medium ${priorityColor}`}>
+                              {priority}
+                            </span>
+                          </div>
+                          
+                          {/* Status badge */}
+                          <div className="mb-4">
+                            <Badge
+                              className={`w-full justify-center py-2 text-white font-semibold rounded-md ${
+                                isCleared
+                                  ? "bg-green-500 hover:bg-green-600"
+                                  : isBlocked
+                                  ? "bg-red-500 hover:bg-red-600"
+                                  : "bg-yellow-500 hover:bg-yellow-600"
+                              }`}
+                            >
+                              {isCleared ? "Cleared" : isBlocked ? "Blocked" : "Pending"}
+                            </Badge>
+                          </div>
+                          
+                          {/* Unit description */}
+                          <p className="text-sm text-gray-700 mb-4">
+                            {status.units?.description || (isBlocked ? "Transcript fees and examination charges" : "Student activities and welfare services")}
+                          </p>
+                          
+                          {/* Amount owed section (for blocked status) */}
+                          {isBlocked && amountOwed > 0 && (
+                            <div className="bg-white/80 rounded-lg p-4 mb-4 border border-red-100">
+                              <div className="flex justify-between items-center mb-2">
+                                <span className="text-sm font-medium text-gray-700">Amount Owed</span>
+                              </div>
+                              <div className="text-2xl font-bold text-red-600 mb-3">
+                                ₦{amountOwed.toLocaleString()}
+                              </div>
+                              <div className="flex justify-between items-center text-sm">
+                                <span className="text-gray-600">Due Date</span>
+                                <div className="flex items-center space-x-2">
+                                  <span className="text-gray-900 font-medium">{dueDate}</span>
+                                  <Badge variant="destructive" className="text-xs px-2 py-1">
+                                    Overdue
+                                  </Badge>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Due date for cleared status */}
+                          {isCleared && (
+                            <div className="text-sm text-gray-600 mb-4">
+                              <div className="flex justify-between items-center">
+                                <span>Due Date</span>
+                                <span className="text-red-600 font-medium">{dueDate}</span>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Contact info */}
+                          <div className="flex items-center text-sm text-gray-500 mb-4">
+                            <span>📧 {status.units?.name?.toLowerCase().replace(/\s+/g, '')}@aju.edu.ng</span>
+                          </div>
+                          
+                          {/* Action button or completion status */}
+                          {isBlocked && amountOwed > 0 ? (
+                            <Button className="w-full bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-3 rounded-md">
+                              <CreditCard className="h-4 w-4 mr-2" />
+                              Pay ₦{amountOwed.toLocaleString()}
+                            </Button>
+                          ) : isCleared ? (
+                            <div className="text-center">
+                              <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-3">
+                                <CheckCircle className="h-8 w-8 text-green-600" />
+                              </div>
+                              <div className="text-green-700 font-semibold text-lg">Clearance Complete</div>
+                              <div className="text-sm text-green-600">Verified on {dueDate}</div>
+                            </div>
+                          ) : (
+                            <div className="text-center">
+                              <div className="inline-flex items-center justify-center w-16 h-16 bg-yellow-100 rounded-full mb-3">
+                                <Clock className="h-8 w-8 text-yellow-600" />
+                              </div>
+                              <div className="text-yellow-700 font-semibold">Pending Review</div>
+                              <div className="text-sm text-yellow-600">Awaiting verification</div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
                 </div>
               </CardContent>
             </Card>

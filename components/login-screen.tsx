@@ -2,7 +2,8 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Shield, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,6 +18,7 @@ interface LoginScreenProps {
 }
 
 export function LoginScreen({ onLogin }: LoginScreenProps) {
+  const router = useRouter();
   const [showPassword, setShowPassword] = useState(false)
   const [isStudentLoggingIn, setIsStudentLoggingIn] = useState(false)
   const [isStaffLoggingIn, setIsStaffLoggingIn] = useState(false)
@@ -30,6 +32,12 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
   })
 
 
+
+  // Reset loading states when component mounts or when returning from navigation
+  useEffect(() => {
+    setIsStudentLoggingIn(false);
+    setIsStaffLoggingIn(false);
+  }, []);
 
   const handleStudentLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -199,7 +207,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
                   </Button>
 
                   <div className="text-center">
-                    <Button variant="link" className="text-blue-600 text-sm">
+                    <Button variant="link" className="text-blue-600 text-sm" onClick={() => router.push('/forgot-password')}>
                       Forgot Password?
                     </Button>
                   </div>
@@ -264,7 +272,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
                   </Button>
 
                   <div className="text-center">
-                    <Button variant="link" className="text-blue-600 text-sm">
+                    <Button variant="link" className="text-blue-600 text-sm" onClick={() => router.push('/forgot-password')}>
                       Forgot Password?
                     </Button>
                   </div>
