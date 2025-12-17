@@ -1,39 +1,41 @@
 "use client";
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { supabase } from '../lib/supabaseClient';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft } from 'lucide-react';
-import Image from 'next/image';
+import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "../../lib/supabaseClient";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowLeft } from "lucide-react";
+import Image from "next/image";
 
 const ForgotPassword: React.FC = () => {
-  const [email, setEmail] = useState('');
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+  const [email, setEmail] = useState("");
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    setMessage('');
-    setError('');
+    setMessage("");
+    setError("");
     setIsLoading(true);
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
-      
+
       if (error) {
-        setError(error.message || 'Error sending password reset email.');
+        setError(error.message || "Error sending password reset email.");
       } else {
-        setMessage('Password reset email sent successfully. Please check your inbox.');
+        setMessage(
+          "Password reset email sent successfully. Please check your inbox."
+        );
       }
     } catch (err) {
-      setError('An unexpected error occurred. Please try again.');
+      setError("An unexpected error occurred. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -53,13 +55,19 @@ const ForgotPassword: React.FC = () => {
                 className="object-contain drop-shadow-aj-logo rounded-sm"
               />
             </div>
-            <CardTitle className="text-2xl font-bold text-aj-accent mb-2">Forgot Password</CardTitle>
-            <p className="text-gray-600 text-sm">Enter your email to receive a password reset link</p>
+            <CardTitle className="text-2xl font-bold text-aj-accent mb-2">
+              Forgot Password
+            </CardTitle>
+            <p className="text-gray-600 text-sm">
+              Enter your email to receive a password reset link
+            </p>
           </CardHeader>
           <CardContent className="pt-4">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">Email Address</label>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Email Address
+                </label>
                 <Input
                   type="email"
                   placeholder="Enter your email address"
@@ -75,7 +83,7 @@ const ForgotPassword: React.FC = () => {
                 className="w-full h-12 bg-aj-accent text-white hover:bg-aj-accent/90 font-semibold text-base"
                 disabled={isLoading}
               >
-                {isLoading ? 'Sending...' : 'Send Reset Link'}
+                {isLoading ? "Sending..." : "Send Reset Link"}
               </Button>
 
               {message && (
@@ -83,7 +91,7 @@ const ForgotPassword: React.FC = () => {
                   <p className="text-sm text-green-800">{message}</p>
                 </div>
               )}
-              
+
               {error && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-md">
                   <p className="text-sm text-red-800">{error}</p>
@@ -95,7 +103,7 @@ const ForgotPassword: React.FC = () => {
                   type="button"
                   variant="link"
                   className="text-blue-600 text-sm flex items-center justify-center mx-auto"
-                  onClick={() => router.push('/')}
+                  onClick={() => router.push("/")}
                 >
                   <ArrowLeft className="h-4 w-4 mr-1" />
                   Back to Login

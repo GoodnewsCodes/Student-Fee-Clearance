@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
+import { useState, useEffect } from "react";
 import {
   Bell,
   ChevronDown,
@@ -27,186 +27,203 @@ import {
   UserCheck,
   LogOut,
   Key,
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Separator } from "@/components/ui/separator"
-import type { ClearanceUnit } from "@/types"
-import { LoginScreen } from "@/components/login-screen"
-import { AdminDashboard } from "@/components/admin-dashboard"
-import { ReceiptUploadModal } from "@/components/receipt-upload-modal"
-import { ICTAdminDashboard } from "@/components/ict-admin-dashboard"
-import Image from "next/image"
-import { supabase } from "@/lib/supabaseClient"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Separator } from "@/components/ui/separator";
+import type { ClearanceUnit } from "@/types";
+import { LoginScreen } from "@/components/auth/login-screen";
+import { AdminDashboard } from "@/components/admin-dashboard";
+import { ReceiptUploadModal } from "@/components/student/receipt-upload-modal";
+import { ICTAdminDashboard } from "@/components/ict/ict-admin-dashboard";
+import Image from "next/image";
+import { supabase } from "@/lib/supabaseClient";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<any>(null)
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [uploadModalOpen, setUploadModalOpen] = useState(false)
-  const [selectedUnit, setSelectedUnit] = useState<ClearanceUnit | null>(null)
-  const [clearanceUnits, setClearanceUnits] = useState<ClearanceUnit[]>([])
-  const [loading, setLoading] = useState(false)
-  const [notifications, setNotifications] = useState<string[]>([])
-  const [showChangePassword, setShowChangePassword] = useState(false)
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [selectedUnit, setSelectedUnit] = useState<ClearanceUnit | null>(null);
+  const [clearanceUnits, setClearanceUnits] = useState<ClearanceUnit[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [notifications, setNotifications] = useState<string[]>([]);
+  const [showChangePassword, setShowChangePassword] = useState(false);
   const [passwordData, setPasswordData] = useState({
     currentPassword: "",
     newPassword: "",
-    confirmPassword: ""
-  })
-  const [isChangingPassword, setIsChangingPassword] = useState(false)
-  const [rejectedReceipts, setRejectedReceipts] = useState<any[]>([])
+    confirmPassword: "",
+  });
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [rejectedReceipts, setRejectedReceipts] = useState<any[]>([]);
 
   // Helper: map unit/department name to icon
   const unitIconMap: Record<string, React.ElementType> = {
-    "Bursary": Building,
+    Bursary: Building,
     "Exams & Records": FileText,
     "Student Affairs": User,
-    "Accounts": CreditCard,
-    "Department": GraduationCap,
-    "Faculty": BookOpen,
-    "Library": Book,
-    "Hospital": Heart,
-    "Admissions": UserCheck,
+    Accounts: CreditCard,
+    Department: GraduationCap,
+    Faculty: BookOpen,
+    Library: Book,
+    Hospital: Heart,
+    Admissions: UserCheck,
     // ...add more as needed
-  }
+  };
   function getUnitIcon(name: string) {
-    return unitIconMap[name] || User
+    return unitIconMap[name] || User;
   }
 
   const handleLogin = async (credentials: any) => {
-  try {
-    let userAuth = credentials.user;
-    // If user object is not passed (legacy), try to get from supabase
-    if (!userAuth) {
-      const { data, error } = await supabase.auth.getUser();
-      if (error || !data.user) {
-        alert("Unable to authenticate user.");
+    try {
+      let userAuth = credentials.user;
+      // If user object is not passed (legacy), try to get from supabase
+      if (!userAuth) {
+        const { data, error } = await supabase.auth.getUser();
+        if (error || !data.user) {
+          alert("Unable to authenticate user.");
+          setCurrentUser(null);
+          return;
+        }
+        userAuth = data.user;
+      }
+      // Fetch profile from Supabase
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("user_id", userAuth.id)
+        .single();
+      if (profileError || !profile) {
+        alert(profileError?.message || "Could not fetch user profile.");
         setCurrentUser(null);
         return;
       }
-      userAuth = data.user;
-    }
-    // Fetch profile from Supabase
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('user_id', userAuth.id)
-      .single();
-    if (profileError || !profile) {
-      alert(profileError?.message || "Could not fetch user profile.");
-      setCurrentUser(null);
-      return;
-    }
-    // Role-based routing
-    if (profile.role === 'student') {
-      setCurrentUser({
-        id: userAuth.id,
-        name: profile.name,
-        trackNo: profile.track_no,
-        role: 'student',
-        unit: null,
-        username: profile.email,
-      });
-      return;
-    }
-    if (profile.role === 'staff') {
-      if (!profile.unit) {
-        alert("Staff profile missing unit assignment. Contact ICT.");
-        setCurrentUser(null);
-        return;
-      }
-      // ICT admin
-      if (profile.unit.toLowerCase() === 'ict') {
+      // Role-based routing
+      if (profile.role === "student") {
         setCurrentUser({
           id: userAuth.id,
           name: profile.name,
-          role: 'staff',
-          unit: 'ict',
+          trackNo: profile.track_no,
+          role: "student",
+          unit: null,
           username: profile.email,
         });
         return;
       }
-      // Other staff
-      setCurrentUser({
-        id: userAuth.id,
-        name: profile.name,
-        role: 'staff',
-        unit: profile.unit.toLowerCase(),
-        username: profile.email,
-      });
-      return;
+      if (profile.role === "staff") {
+        if (!profile.unit) {
+          alert("Staff profile missing unit assignment. Contact ICT.");
+          setCurrentUser(null);
+          return;
+        }
+        // ICT admin
+        if (profile.unit.toLowerCase() === "ict") {
+          setCurrentUser({
+            id: userAuth.id,
+            name: profile.name,
+            role: "staff",
+            unit: "ict",
+            username: profile.email,
+          });
+          return;
+        }
+        // Other staff
+        setCurrentUser({
+          id: userAuth.id,
+          name: profile.name,
+          role: "staff",
+          unit: profile.unit.toLowerCase(),
+          username: profile.email,
+        });
+        return;
+      }
+      // Invalid role
+      alert("Access denied. Invalid user role.");
+      setCurrentUser(null);
+    } catch (err) {
+      alert(
+        "An unexpected error occurred during login. Check the console for details."
+      );
+      setCurrentUser(null);
+      console.error(err);
     }
-    // Invalid role
-    alert("Access denied. Invalid user role.");
-    setCurrentUser(null);
-  } catch (err) {
-    alert("An unexpected error occurred during login. Check the console for details.");
-    setCurrentUser(null);
-    console.error(err);
-  }
-}
+  };
 
   const handleLogout = () => {
-    setCurrentUser(null)
-  }
+    setCurrentUser(null);
+  };
 
   const handleChangePassword = async () => {
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      alert("New passwords don't match")
-      return
+      alert("New passwords don't match");
+      return;
     }
 
-    setIsChangingPassword(true)
+    setIsChangingPassword(true);
     try {
       const { error } = await supabase.auth.updateUser({
-        password: passwordData.newPassword
-      })
+        password: passwordData.newPassword,
+      });
 
-      if (error) throw error
+      if (error) throw error;
 
-      alert("Password changed successfully!")
-      setShowChangePassword(false)
-      setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" })
+      alert("Password changed successfully!");
+      setShowChangePassword(false);
+      setPasswordData({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
     } catch (error: any) {
-      alert(`Error changing password: ${error.message}`)
+      alert(`Error changing password: ${error.message}`);
     } finally {
-      setIsChangingPassword(false)
+      setIsChangingPassword(false);
     }
-  }
+  };
 
   // Move fetchClearance function here
   const fetchClearance = async () => {
     if (!currentUser || currentUser.role !== "student") return;
-    
+
     console.log("Fetching clearance for user:", currentUser.id);
-    setLoading(true)
-    
+    setLoading(true);
+
     const { data, error } = await supabase
       .from("clearance_status")
       .select(`*, units (id, name, description, priority)`)
-      .eq("user_id", currentUser.id)
-      
+      .eq("user_id", currentUser.id);
+
     console.log("Clearance query result:", { data, error });
-    
+
     if (error) {
       console.error("Database error:", error);
-      alert("Failed to fetch clearance status: " + error.message)
-      setLoading(false)
-      return
+      alert("Failed to fetch clearance status: " + error.message);
+      setLoading(false);
+      return;
     }
-    
+
     if (!data || data.length === 0) {
       console.log("No clearance data found for student");
-      setLoading(false)
-      return
+      setLoading(false);
+      return;
     }
-    
+
     const mapped = (data || []).map((item: any) => ({
       id: item.units?.id || item.id,
       name: item.units?.name || "Unknown",
@@ -216,155 +233,200 @@ export default function App() {
       description: item.units?.description || "",
       priority: item.units?.priority || "medium",
       rejectionReason: item.rejection_reason || "",
-    }))
-    
+    }));
+
     console.log("Mapped clearance units:", mapped);
-    setClearanceUnits(mapped)
-    setLoading(false)
-  }
+    setClearanceUnits(mapped);
+    setLoading(false);
+  };
 
   // ALL useEffect hooks must be here, before any conditional returns
   useEffect(() => {
-    fetchClearance()
-  }, [currentUser])
+    fetchClearance();
+  }, [currentUser]);
 
   useEffect(() => {
     if (!currentUser || currentUser.role !== "student") return;
-    
+
     const channel = supabase
       .channel("student-clearance-updates")
       .on(
         "postgres_changes",
-        { 
-          event: "*", 
-          schema: "public", 
+        {
+          event: "*",
+          schema: "public",
           table: "clearance_status",
-          filter: `student_id=eq.${currentUser.id}`
+          filter: `student_id=eq.${currentUser.id}`,
         },
         (payload) => {
-          console.log("Clearance status updated:", payload)
-          fetchClearance()
+          console.log("Clearance status updated:", payload);
+          fetchClearance();
         }
       )
-      .subscribe()
+      .subscribe();
 
     return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [currentUser])
+      supabase.removeChannel(channel);
+    };
+  }, [currentUser]);
 
   useEffect(() => {
-    const previousStatuses = localStorage.getItem('clearance-statuses')
+    const previousStatuses = localStorage.getItem("clearance-statuses");
     if (previousStatuses && clearanceUnits.length > 0) {
-      const prev = JSON.parse(previousStatuses)
-      const newCleared = clearanceUnits.filter(unit => 
-        unit.status === 'cleared' && 
-        prev.find((p: any) => p.id === unit.id)?.status !== 'cleared'
-      )
-      
+      const prev = JSON.parse(previousStatuses);
+      const newCleared = clearanceUnits.filter(
+        (unit) =>
+          unit.status === "cleared" &&
+          prev.find((p: any) => p.id === unit.id)?.status !== "cleared"
+      );
+
       if (newCleared.length > 0) {
-        setNotifications(prev => [...prev, `${newCleared[0].name} clearance approved!`])
+        setNotifications((prev) => [
+          ...prev,
+          `${newCleared[0].name} clearance approved!`,
+        ]);
       }
     }
-    
-    localStorage.setItem('clearance-statuses', JSON.stringify(clearanceUnits))
-  }, [clearanceUnits])
+
+    localStorage.setItem("clearance-statuses", JSON.stringify(clearanceUnits));
+  }, [clearanceUnits]);
 
   useEffect(() => {
     const fetchRejectedReceipts = async () => {
-      if (currentUser?.role === 'student') {
+      if (currentUser?.role === "student") {
         const { data } = await supabase
           .from("receipts")
           .select(`*, fees!receipts_fee_id_fkey (name)`)
           .eq("student_id", currentUser.id)
-          .eq("status", "rejected")
-        
-        setRejectedReceipts(data || [])
+          .eq("status", "rejected");
+
+        setRejectedReceipts(data || []);
       }
-    }
+    };
 
     if (currentUser) {
-      fetchRejectedReceipts()
+      fetchRejectedReceipts();
     }
-  }, [currentUser])
+  }, [currentUser]);
 
   // NOW you can have conditional returns
   if (!currentUser) {
-    return <LoginScreen onLogin={handleLogin} />
+    return <LoginScreen onLogin={handleLogin} />;
   }
 
   if (currentUser.role === "staff") {
     if (currentUser.unit === "ict") {
-      return <ICTAdminDashboard user={currentUser} onLogout={handleLogout} />
+      return <ICTAdminDashboard user={currentUser} onLogout={handleLogout} />;
     }
-    return <AdminDashboard user={currentUser} onLogout={handleLogout} />
+    return <AdminDashboard user={currentUser} onLogout={handleLogout} />;
   }
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <span className="text-lg text-aj-primary">Loading your clearance status...</span>
+        <span className="text-lg text-aj-primary">
+          Loading your clearance status...
+        </span>
       </div>
-    )
+    );
   }
 
   // Student Dashboard
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "cleared":
-        return <CheckCircle className="h-5 w-5 text-aj-success" />
+        return <CheckCircle className="h-5 w-5 text-aj-success" />;
       case "pending":
-        return <Clock className="h-5 w-5 text-aj-warning" />
+        return <Clock className="h-5 w-5 text-aj-warning" />;
       case "rejected":
-        return <XCircle className="h-5 w-5 text-aj-danger" />
+        return <XCircle className="h-5 w-5 text-aj-danger" />;
       case "submit_receipt":
-        return <Upload className="h-5 w-5 text-aj-accent" />
+        return <Upload className="h-5 w-5 text-aj-accent" />;
       default:
-        return null
+        return null;
     }
-  }
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "cleared":
-        return <Badge variant="default" className="bg-green-500 text-white hover:bg-green-600 whitespace-nowrap">Cleared</Badge>
+        return (
+          <Badge
+            variant="default"
+            className="bg-green-500 text-white hover:bg-green-600 whitespace-nowrap"
+          >
+            Cleared
+          </Badge>
+        );
       case "pending":
-        return <Badge variant="default" className="bg-yellow-500 text-white hover:bg-yellow-600 whitespace-nowrap">Pending Review</Badge>
+        return (
+          <Badge
+            variant="default"
+            className="bg-yellow-500 text-white hover:bg-yellow-600 whitespace-nowrap"
+          >
+            Pending Review
+          </Badge>
+        );
       case "rejected":
-        return <Badge variant="destructive" className="whitespace-nowrap">Rejected</Badge>
+        return (
+          <Badge variant="destructive" className="whitespace-nowrap">
+            Rejected
+          </Badge>
+        );
       case "submit_receipt":
-        return <Badge variant="default" className="bg-blue-500 text-white hover:bg-blue-600 whitespace-nowrap">Submit Receipt</Badge>
+        return (
+          <Badge
+            variant="default"
+            className="bg-blue-500 text-white hover:bg-blue-600 whitespace-nowrap"
+          >
+            Submit Receipt
+          </Badge>
+        );
       default:
-        return null
+        return null;
     }
-  }
+  };
 
   const getPriorityDot = (priority: string) => {
     switch (priority) {
       case "high":
-        return <div className="w-2 h-2 bg-aj-danger rounded-full" />
+        return <div className="w-2 h-2 bg-aj-danger rounded-full" />;
       case "medium":
-        return <div className="w-2 h-2 bg-aj-warning rounded-full" />
+        return <div className="w-2 h-2 bg-aj-warning rounded-full" />;
       case "low":
-        return <div className="w-2 h-2 bg-aj-success rounded-full" />
+        return <div className="w-2 h-2 bg-aj-success rounded-full" />;
       default:
-        return null
+        return null;
     }
-  }
+  };
 
   const getActionButton = (unit: ClearanceUnit) => {
     // Remove all action buttons - students only view status
     return null;
-  }
+  };
 
-  const clearedCount = clearanceUnits.filter((unit) => unit.status === "cleared").length
-  const pendingCount = clearanceUnits.filter((unit) => unit.status === "pending").length
-  const rejectedCount = clearanceUnits.filter((unit) => unit.status === "rejected").length
-  const submitReceiptCount = clearanceUnits.filter((unit) => unit.status === "submit_receipt").length
-  const totalCount = clearanceUnits.length
-  const progressPercentage = totalCount > 0 ? (clearedCount / totalCount) * 100 : 0
-  const totalOwed = clearanceUnits.reduce((sum, unit) => sum + unit.amountOwed, 0)
-  const urgentItems = clearanceUnits.filter((unit) => unit.priority === "high" && unit.status !== "cleared")
+  const clearedCount = clearanceUnits.filter(
+    (unit) => unit.status === "cleared"
+  ).length;
+  const pendingCount = clearanceUnits.filter(
+    (unit) => unit.status === "pending"
+  ).length;
+  const rejectedCount = clearanceUnits.filter(
+    (unit) => unit.status === "rejected"
+  ).length;
+  const submitReceiptCount = clearanceUnits.filter(
+    (unit) => unit.status === "submit_receipt"
+  ).length;
+  const totalCount = clearanceUnits.length;
+  const progressPercentage =
+    totalCount > 0 ? (clearedCount / totalCount) * 100 : 0;
+  const totalOwed = clearanceUnits.reduce(
+    (sum, unit) => sum + unit.amountOwed,
+    0
+  );
+  const urgentItems = clearanceUnits.filter(
+    (unit) => unit.priority === "high" && unit.status !== "cleared"
+  );
 
   return (
     <div className="min-h-screen bg-aj-background">
@@ -384,7 +446,9 @@ export default function App() {
                 />
               </div>
               <div>
-                <span className="text-xl font-semibold hidden sm:block">Arthur Jarvis University</span>
+                <span className="text-xl font-semibold hidden sm:block">
+                  Arthur Jarvis University
+                </span>
                 <span className="text-lg font-semibold sm:hidden">AJU</span>
               </div>
             </div>
@@ -393,18 +457,27 @@ export default function App() {
             <div className="hidden md:flex items-center space-x-4">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="text-white hover:bg-white/10 hover:text-white">
+                  <Button
+                    variant="ghost"
+                    className="text-white hover:bg-white/10 hover:text-white"
+                  >
                     <User className="h-4 w-4 mr-2" />
                     {currentUser.name}
                     <ChevronDown className="h-4 w-4 ml-2" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="bg-white">
-                  <DropdownMenuItem onClick={() => setShowChangePassword(true)} className="hover:bg-gray-100">
+                  <DropdownMenuItem
+                    onClick={() => setShowChangePassword(true)}
+                    className="hover:bg-gray-100"
+                  >
                     <Key className="h-4 w-4 mr-2" />
                     Change Password
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleLogout} className="hover:bg-gray-100">
+                  <DropdownMenuItem
+                    onClick={handleLogout}
+                    className="hover:bg-gray-100"
+                  >
                     <LogOut className="h-4 w-4 mr-2" />
                     Logout
                   </DropdownMenuItem>
@@ -444,9 +517,16 @@ export default function App() {
         <div className="mb-8">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6">
             <div>
-              <h1 className="text-3xl font-bold text-aj-primary mb-2">Fee Clearance Status</h1>
-              <p className="text-gray-600">Track your clearance progress across all university departments & units</p>
-              <p className="text-sm text-gray-500 mt-1">Track No: {currentUser.trackNo}</p>
+              <h1 className="text-3xl font-bold text-aj-primary mb-2">
+                Fee Clearance Status
+              </h1>
+              <p className="text-gray-600">
+                Track your clearance progress across all university departments
+                & units
+              </p>
+              <p className="text-sm text-gray-500 mt-1">
+                Track No: {currentUser.trackNo}
+              </p>
             </div>
             <div className="mt-4 lg:mt-0">
               <div className="flex items-center space-x-2 text-sm text-gray-500">
@@ -463,7 +543,9 @@ export default function App() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs font-medium text-gray-600">Cleared</p>
-                    <p className="text-xl font-bold text-aj-success">{clearedCount}</p>
+                    <p className="text-xl font-bold text-aj-success">
+                      {clearedCount}
+                    </p>
                   </div>
                   <CheckCircle className="h-6 w-6 text-aj-success" />
                 </div>
@@ -475,7 +557,9 @@ export default function App() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs font-medium text-gray-600">Pending</p>
-                    <p className="text-xl font-bold text-aj-warning">{pendingCount}</p>
+                    <p className="text-xl font-bold text-aj-warning">
+                      {pendingCount}
+                    </p>
                   </div>
                   <Clock className="h-6 w-6 text-aj-warning" />
                 </div>
@@ -486,8 +570,12 @@ export default function App() {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-medium text-gray-600">Rejected</p>
-                    <p className="text-xl font-bold text-aj-danger">{rejectedCount}</p>
+                    <p className="text-xs font-medium text-gray-600">
+                      Rejected
+                    </p>
+                    <p className="text-xl font-bold text-aj-danger">
+                      {rejectedCount}
+                    </p>
                   </div>
                   <XCircle className="h-6 w-6 text-aj-danger" />
                 </div>
@@ -498,8 +586,12 @@ export default function App() {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-medium text-gray-600">Total Owed</p>
-                    <p className="text-lg font-bold text-aj-danger">₦{totalOwed.toLocaleString()}</p>
+                    <p className="text-xs font-medium text-gray-600">
+                      Total Owed
+                    </p>
+                    <p className="text-lg font-bold text-aj-danger">
+                      ₦{totalOwed.toLocaleString()}
+                    </p>
                   </div>
                   <DollarSign className="h-6 w-6 text-aj-danger" />
                 </div>
@@ -515,10 +607,13 @@ export default function App() {
               <div className="flex items-start space-x-3">
                 <AlertTriangle className="h-6 w-6 text-aj-danger mt-1" />
                 <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-aj-danger mb-2">Urgent Action Required</h3>
+                  <h3 className="text-lg font-semibold text-aj-danger mb-2">
+                    Urgent Action Required
+                  </h3>
                   <p className="text-gray-700 mb-3">
-                    You have {urgentItems.length} high-priority clearance{urgentItems.length > 1 ? "s" : ""} that need
-                    immediate attention.
+                    You have {urgentItems.length} high-priority clearance
+                    {urgentItems.length > 1 ? "s" : ""} that need immediate
+                    attention.
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {urgentItems.map((item) => (
@@ -542,9 +637,12 @@ export default function App() {
                   <div className="flex items-start space-x-3">
                     <XCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
                     <div className="flex-1">
-                      <h4 className="font-medium text-red-800">Receipt Rejected</h4>
+                      <h4 className="font-medium text-red-800">
+                        Receipt Rejected
+                      </h4>
                       <p className="text-sm text-red-700 mt-1">
-                        Your receipt for <strong>{receipt.fees?.name}</strong> has been rejected.
+                        Your receipt for <strong>{receipt.fees?.name}</strong>{" "}
+                        has been rejected.
                       </p>
                       {receipt.rejection_reason && (
                         <p className="text-sm text-red-600 mt-2 font-medium">
@@ -552,7 +650,8 @@ export default function App() {
                         </p>
                       )}
                       <p className="text-xs text-red-600 mt-2">
-                        Please upload a new receipt with the correct information.
+                        Please upload a new receipt with the correct
+                        information.
                       </p>
                     </div>
                   </div>
@@ -570,7 +669,10 @@ export default function App() {
                 <TrendingUp className="h-5 w-5 mr-2" />
                 Clearance Progress
               </CardTitle>
-              <Badge variant="outline" className="text-aj-primary border-aj-primary">
+              <Badge
+                variant="outline"
+                className="text-aj-primary border-aj-primary"
+              >
                 {Math.round(progressPercentage)}% Complete
               </Badge>
             </div>
@@ -590,11 +692,17 @@ export default function App() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <div className="p-4 bg-gray-50 rounded-lg">
-                    <p className="text-sm text-gray-600 mb-1">Total Outstanding Balance</p>
-                    <p className="text-2xl font-bold text-aj-danger">₦{totalOwed.toLocaleString()}</p>
+                    <p className="text-sm text-gray-600 mb-1">
+                      Total Outstanding Balance
+                    </p>
+                    <p className="text-2xl font-bold text-aj-danger">
+                      ₦{totalOwed.toLocaleString()}
+                    </p>
                   </div>
                   <div className="p-4 bg-gray-50 rounded-lg">
-                    <p className="text-sm text-gray-600 mb-1">Departments Cleared</p>
+                    <p className="text-sm text-gray-600 mb-1">
+                      Departments Cleared
+                    </p>
                     <p className="text-xl font-bold text-aj-success">
                       {clearedCount}/{totalCount}
                     </p>
@@ -608,7 +716,9 @@ export default function App() {
                     size="lg"
                   >
                     <Shield className="h-5 w-5 mr-2" />
-                    {progressPercentage === 100 ? "Generate Clearance Slip" : "Complete All Clearances"}
+                    {progressPercentage === 100
+                      ? "Generate Clearance Slip"
+                      : "Complete All Clearances"}
                   </Button>
                   {progressPercentage < 100 && (
                     <p className="text-xs text-gray-500 mt-2 text-center">
@@ -625,8 +735,12 @@ export default function App() {
         <Card className="mb-8">
           <CardContent className="p-6">
             <div className="text-center">
-              <h3 className="text-lg font-semibold mb-2">Submit Payment Receipts</h3>
-              <p className="text-gray-600 mb-4">Upload receipts for fee payments</p>
+              <h3 className="text-lg font-semibold mb-2">
+                Submit Payment Receipts
+              </h3>
+              <p className="text-gray-600 mb-4">
+                Upload receipts for fee payments
+              </p>
               <Button
                 onClick={() => setUploadModalOpen(true)}
                 className="bg-aj-accent text-white hover:bg-aj-accent/90 font-semibold"
@@ -642,7 +756,7 @@ export default function App() {
         {/* Clearance Status Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           {clearanceUnits.map((unit) => {
-            const IconComponent = unit.icon
+            const IconComponent = unit.icon;
             return (
               <Card key={unit.id} className="relative overflow-hidden">
                 <CardContent className="p-6">
@@ -653,10 +767,14 @@ export default function App() {
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center space-x-2">
-                          <h3 className="font-semibold text-gray-900">{unit.name}</h3>
+                          <h3 className="font-semibold text-gray-900">
+                            {unit.name}
+                          </h3>
                           {getPriorityDot(unit.priority)}
                         </div>
-                        <p className="text-sm text-gray-500">{unit.description}</p>
+                        <p className="text-sm text-gray-500">
+                          {unit.description}
+                        </p>
                       </div>
                     </div>
                     {getStatusBadge(unit.status)}
@@ -665,7 +783,8 @@ export default function App() {
                   {unit.status === "rejected" && unit.rejectionReason && (
                     <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
                       <p className="text-sm text-red-700">
-                        <strong>Rejection Reason:</strong> {unit.rejectionReason}
+                        <strong>Rejection Reason:</strong>{" "}
+                        {unit.rejectionReason}
                       </p>
                     </div>
                   )}
@@ -673,13 +792,14 @@ export default function App() {
                   {unit.amountOwed > 0 && (
                     <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-md">
                       <p className="text-sm text-orange-700">
-                        <strong>Amount Owed:</strong> ₦{unit.amountOwed.toLocaleString()}
+                        <strong>Amount Owed:</strong> ₦
+                        {unit.amountOwed.toLocaleString()}
                       </p>
                     </div>
                   )}
                 </CardContent>
               </Card>
-            )
+            );
           })}
         </div>
 
@@ -722,10 +842,13 @@ export default function App() {
                   className="object-contain"
                 />
               </div>
-              <span className="font-semibold text-aj-primary">Arthur Jarvis University</span>
+              <span className="font-semibold text-aj-primary">
+                Arthur Jarvis University
+              </span>
             </div>
             <p className="text-sm text-gray-500">
-              © 2025 Arthur Jarvis University. All rights reserved. | Student Fee Clearance System
+              © 2025 Arthur Jarvis University. All rights reserved. | Student
+              Fee Clearance System
             </p>
           </div>
         </footer>
@@ -750,30 +873,48 @@ export default function App() {
               <Input
                 type="password"
                 value={passwordData.newPassword}
-                onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
+                onChange={(e) =>
+                  setPasswordData((prev) => ({
+                    ...prev,
+                    newPassword: e.target.value,
+                  }))
+                }
                 placeholder="Enter new password"
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Confirm New Password</label>
+              <label className="text-sm font-medium">
+                Confirm New Password
+              </label>
               <Input
                 type="password"
                 value={passwordData.confirmPassword}
-                onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                onChange={(e) =>
+                  setPasswordData((prev) => ({
+                    ...prev,
+                    confirmPassword: e.target.value,
+                  }))
+                }
                 placeholder="Confirm new password"
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowChangePassword(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setShowChangePassword(false)}
+            >
               Cancel
             </Button>
-            <Button onClick={handleChangePassword} disabled={isChangingPassword}>
+            <Button
+              onClick={handleChangePassword}
+              disabled={isChangingPassword}
+            >
               {isChangingPassword ? "Changing..." : "Change Password"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }
