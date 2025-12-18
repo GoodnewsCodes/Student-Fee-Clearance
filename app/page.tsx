@@ -55,6 +55,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { generateClearanceSlip } from "@/lib/pdf-generator";
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -714,6 +715,11 @@ export default function App() {
                     className="bg-aj-accent text-white hover:bg-aj-accent/90 font-semibold"
                     disabled={progressPercentage < 100}
                     size="lg"
+                    onClick={() => {
+                      if (progressPercentage === 100) {
+                        generateClearanceSlip(currentUser, clearanceUnits);
+                      }
+                    }}
                   >
                     <Shield className="h-5 w-5 mr-2" />
                     {progressPercentage === 100
