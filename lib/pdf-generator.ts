@@ -137,12 +137,9 @@ export const generateClearanceSlip = async (
 
   // Generate QR Code
   try {
-    const qrData = JSON.stringify({
-      student: student.name,
-      trackNo: student.trackNo,
-      status: "CLEARED",
-      date: new Date().toISOString(),
-    });
+    const qrData = `Arthur Jarvis University\nClearance Slip\n\nStudent: ${student.name.toUpperCase()}\nTrack No: ${
+      student.trackNo
+    }\nStatus: CLEARED\nDate: ${new Date().toLocaleDateString()}`;
     const qrCodeDataUrl = await QRCode.toDataURL(qrData);
 
     // Add QR Code
