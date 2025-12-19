@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import Image from "next/image";
+import Link from "next/link";
 import { adminUnits } from "@/types/units";
 
 interface LoginScreenProps {
@@ -134,7 +135,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
       <div className="w-full max-w-md">
         <Card className="shadow-lg border-0">
           <CardHeader className="text-center pb-2">
-            <div className="w-16 h-16 mx-auto mb-4">
+            <div className="w-16 h-16 mx-auto mb-2">
               <Image
                 src="/aju-logo.png"
                 alt="Arthur Jarvis University Logo"
@@ -143,7 +144,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
                 className="object-contain drop-shadow-aj-logo rounded-sm"
               />
             </div>
-            <CardTitle className="text-2xl font-bold text-aj-accent mb-2">
+            <CardTitle className="text-2xl font-bold text-aj-accent drop-shadow-aj-primary mb-2">
               Arthur Jarvis University
             </CardTitle>
             <p className="text-gray-600 text-sm">Fee Clearance System</p>
@@ -224,7 +225,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
 
                   <Button
                     type="submit"
-                    className="w-full h-12 bg-aj-accent text-white hover:bg-aj-accent/90 font-semibold text-base flex items-center justify-center"
+                    className="w-full h-12 bg-aj-accent text-white hover:bg-aj-accent/90 hover:text-white font-semibold text-base flex items-center justify-center"
                     disabled={isStudentLoggingIn}
                   >
                     {isStudentLoggingIn ? (
@@ -257,13 +258,12 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
                   </Button>
 
                   <div className="text-center">
-                    <Button
-                      variant="link"
-                      className="text-blue-600 text-sm"
-                      onClick={() => router.push("/forgot-password")}
+                    <Link
+                      href="/forgot-password"
+                      className="text-aj-primary/90 text-sm hover:underline"
                     >
                       Forgot Password?
-                    </Button>
+                    </Link>
                   </div>
                 </form>
               </TabsContent>
@@ -325,7 +325,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
 
                   <Button
                     type="submit"
-                    className="w-full h-12 bg-aj-accent text-white hover:bg-aj-accent/90 font-semibold text-base flex items-center justify-center"
+                    className="w-full h-12 bg-aj-accent text-white hover:bg-aj-accent/90 hover:text-white font-semibold text-base flex items-center justify-center"
                     disabled={isStaffLoggingIn}
                   >
                     {isStaffLoggingIn ? (
@@ -358,13 +358,12 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
                   </Button>
 
                   <div className="text-center">
-                    <Button
-                      variant="link"
-                      className="text-blue-600 text-sm"
-                      onClick={() => router.push("/forgot-password")}
+                    <Link
+                      href="/forgot-password"
+                      className="text-aj-primary/90 text-sm hover:underline"
                     >
                       Forgot Password?
-                    </Button>
+                    </Link>
                   </div>
                 </form>
               </TabsContent>

@@ -58,7 +58,7 @@ export const generateClearanceSlip = async (
   const uniWidth = doc.getTextWidth(uniText);
   const charSpace = (ajWidth - uniWidth) / (uniText.length - 1);
 
-  doc.text(uniText, textStartX / 1.12, currentY, {
+  doc.text(uniText, textStartX / 1.11, currentY, {
     align: "center",
     charSpace: charSpace,
   });

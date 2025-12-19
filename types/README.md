@@ -23,10 +23,10 @@ Defines department-related data.
 
 - **`Department`**: Interface with `id`, `name`, and `faculty`.
 - **`departments`**: A constant array of predefined departments (e.g., Computer Science, Mass Communication).
+- **`departmentUnits`**: List of academic departments with their display labels.
 
 ### `units.ts`
 
 Defines constants for administrative and academic units.
 
 - **`adminUnits`**: List of administrative units (e.g., Bursary, ICT, Student Affairs) with their display labels.
-- **`departmentUnits`**: List of academic departments with their display labels.

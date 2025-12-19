@@ -1,4 +1,4 @@
-import type { Config } from "tailwindcss"
+import type { Config } from "tailwindcss";
 
 const config: Config = {
   darkMode: ["class"],
@@ -19,18 +19,18 @@ const config: Config = {
       },
     },
     fontFamily: {
-      sans: ['Arial', 'Helvetica', 'sans-serif'],
-      serif: ['Georgia', 'serif'],
-      mono: ['ui-monospace', 'SFMono-Regular', 'monospace'],
+      sans: ["Arial", "Helvetica", "sans-serif"],
+      serif: ["Georgia", "serif"],
+      mono: ["ui-monospace", "SFMono-Regular", "monospace"],
     },
     fontSize: {
-      xs: ['0.8rem', { lineHeight: '1.2rem' }],
-      sm: ['0.95rem', { lineHeight: '1.4rem' }],
-      base: ['1.1rem', { lineHeight: '1.6rem' }],
-      lg: ['1.25rem', { lineHeight: '1.75rem' }],
-      xl: ['1.4rem', { lineHeight: '1.9rem' }],
-      '2xl': ['1.6rem', { lineHeight: '2.1rem' }],
-      '3xl': ['2rem', { lineHeight: '2.5rem' }],
+      xs: ["0.8rem", { lineHeight: "1.2rem" }],
+      sm: ["0.95rem", { lineHeight: "1.4rem" }],
+      base: ["1.1rem", { lineHeight: "1.6rem" }],
+      lg: ["1.25rem", { lineHeight: "1.75rem" }],
+      xl: ["1.4rem", { lineHeight: "1.9rem" }],
+      "2xl": ["1.6rem", { lineHeight: "2.1rem" }],
+      "3xl": ["2rem", { lineHeight: "2.5rem" }],
     },
     extend: {
       colors: {
@@ -79,9 +79,13 @@ const config: Config = {
         },
       },
       dropShadow: {
-        'aj-logo': [
-          '0 4px 8px rgba(255, 162, 0, 0.3)',
-          '0 2px 4px rgba(255, 162, 0, 0.2)'
+        "aj-logo": [
+          "0 4px 8px rgba(255, 162, 0, 0.3)",
+          "0 2px 4px rgba(255, 162, 0, 0.2)",
+        ],
+        "aj-primary": [
+          "0 2px 4px rgba(36, 40, 70, 0.11)",
+          "0 1px 2px rgba(41, 43, 71, 0.06)",
         ],
       },
       borderRadius: {
@@ -106,12 +110,6 @@ const config: Config = {
     },
   },
   plugins: [require("tailwindcss-animate")],
-} satisfies Config
+} satisfies Config;
 
-export default config
-
-
-
-
-
-
+export default config;

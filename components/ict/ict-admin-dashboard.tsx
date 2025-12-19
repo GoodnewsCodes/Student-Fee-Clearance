@@ -14,6 +14,8 @@ import {
   Building,
   GraduationCap,
   Key,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,7 +50,8 @@ import {
 import Image from "next/image";
 import { supabase } from "@/lib/supabaseClient";
 import type { Receipt, StudentProfile, ClearanceStatus } from "@/types";
-import { departmentUnits, adminUnits } from "@/types/units";
+import { adminUnits } from "@/types/units";
+import { departmentUnits } from "@/types/department";
 import { VerificationScreen } from "@/components/verification-screen";
 import { ReceiptReviewScreen } from "@/components/receipt-review-screen";
 import {
@@ -116,6 +119,9 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
     confirmPassword: "",
   });
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [showDefaultPassword, setShowDefaultPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleChangePassword = async () => {
     if (passwordData.newPassword !== passwordData.confirmPassword) {
@@ -409,6 +415,13 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="bg-white">
                   <DropdownMenuItem
+                    onClick={() => setShowChangePassword(true)}
+                    className="hover:bg-gray-100"
+                  >
+                    <Key className="h-4 w-4 mr-2" />
+                    Change Password
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
                     onClick={onLogout}
                     className="hover:bg-gray-100"
                   >
@@ -425,7 +438,7 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-white hover:bg-white/10 hover:text-white"
+                    className="text-white hover:bg-aj-primary hover:text-white"
                   >
                     <Menu className="h-6 w-6" />
                   </Button>
@@ -514,17 +527,35 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
                     <label className="text-sm font-medium text-gray-700 mb-2 block">
                       Default Password
                     </label>
-                    <Input
-                      type="password"
-                      value={newUserData.password}
-                      onChange={(e) =>
-                        setNewUserData((p) => ({
-                          ...p,
-                          password: e.target.value,
-                        }))
-                      }
-                      placeholder="Enter password"
-                    />
+                    <div className="relative">
+                      <Input
+                        type={showDefaultPassword ? "text" : "password"}
+                        value={newUserData.password}
+                        onChange={(e) =>
+                          setNewUserData((p) => ({
+                            ...p,
+                            password: e.target.value,
+                          }))
+                        }
+                        placeholder="Enter password"
+                        className="pr-10"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        onClick={() =>
+                          setShowDefaultPassword(!showDefaultPassword)
+                        }
+                      >
+                        {showDefaultPassword ? (
+                          <EyeOff className="h-4 w-4 text-gray-500" />
+                        ) : (
+                          <Eye className="h-4 w-4 text-gray-500" />
+                        )}
+                      </Button>
+                    </div>
                   </div>
                   {newUserData.role === "student" ? (
                     <>
@@ -630,6 +661,95 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
           </TabsContent>
         </Tabs>
       </main>
+
+      {/* Change Password Dialog */}
+      <Dialog open={showChangePassword} onOpenChange={setShowChangePassword}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Change Password</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-1 block">
+                New Password
+              </label>
+              <div className="relative">
+                <Input
+                  type={showNewPassword ? "text" : "password"}
+                  value={passwordData.newPassword}
+                  onChange={(e) =>
+                    setPasswordData((prev) => ({
+                      ...prev,
+                      newPassword: e.target.value,
+                    }))
+                  }
+                  placeholder="Enter new password"
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                >
+                  {showNewPassword ? (
+                    <EyeOff className="h-4 w-4 text-gray-500" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-gray-500" />
+                  )}
+                </Button>
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">
+                Confirm New Password
+              </label>
+              <div className="relative">
+                <Input
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={passwordData.confirmPassword}
+                  onChange={(e) =>
+                    setPasswordData((prev) => ({
+                      ...prev,
+                      confirmPassword: e.target.value,
+                    }))
+                  }
+                  placeholder="Confirm new password"
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff className="h-4 w-4 text-gray-500" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-gray-500" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowChangePassword(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleChangePassword}
+              disabled={isChangingPassword}
+            >
+              {isChangingPassword ? "Changing..." : "Change Password"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

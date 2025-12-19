@@ -27,6 +27,8 @@ import {
   UserCheck,
   LogOut,
   Key,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,6 +41,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import type { ClearanceUnit } from "@/types";
 import { LoginScreen } from "@/components/auth/login-screen";
@@ -72,6 +81,9 @@ export default function App() {
     confirmPassword: "",
   });
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [rejectedReceipts, setRejectedReceipts] = useState<any[]>([]);
 
   // Helper: map unit/department name to icon
@@ -207,7 +219,7 @@ export default function App() {
 
     const { data, error } = await supabase
       .from("clearance_status")
-      .select(`*, units (id, name, description, priority)`)
+      .select(`*, units (id, name, priority)`)
       .eq("user_id", currentUser.id);
 
     console.log("Clearance query result:", { data, error });
@@ -231,7 +243,6 @@ export default function App() {
       icon: getUnitIcon(item.units?.name || "Unknown"),
       status: (item.status || "pending").toLowerCase(),
       amountOwed: item.amount_owed || 0,
-      description: item.units?.description || "",
       priority: item.units?.priority || "medium",
       rejectionReason: item.rejection_reason || "",
     }));
@@ -429,6 +440,10 @@ export default function App() {
     (unit) => unit.priority === "high" && unit.status !== "cleared"
   );
 
+  const filteredUnits = clearanceUnits.filter(
+    (unit) => statusFilter === "all" || unit.status === statusFilter
+  );
+
   return (
     <div className="min-h-screen bg-aj-background">
       {/* Top Navigation Bar */}
@@ -450,7 +465,9 @@ export default function App() {
                 <span className="text-xl font-semibold hidden sm:block">
                   Arthur Jarvis University
                 </span>
-                <span className="text-lg font-semibold sm:hidden">AJU</span>
+                <span className="text-lg font-semibold sm:hidden">
+                  Arthur Jarvis University
+                </span>
               </div>
             </div>
 
@@ -490,7 +507,11 @@ export default function App() {
             <div className="md:hidden">
               <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
                 <SheetTrigger asChild>
-                  <Button variant="ghost" size="sm" className="text-white">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="hover:bg-aj-primary text-white"
+                  >
                     <Menu className="h-6 w-6" />
                   </Button>
                 </SheetTrigger>
@@ -687,21 +708,21 @@ export default function App() {
                     {clearedCount}/{totalCount} Units Cleared
                   </span>
                 </div>
-                <Progress value={progressPercentage} className="h-3" />
+                <Progress value={progressPercentage} className="h-2" />
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="space-y-4">
-                  <div className="p-4 bg-gray-50 rounded-lg">
-                    <p className="text-sm text-gray-600 mb-1">
+                  <div className="p-4 bg-gray-50 rounded-lg flex flex-row items-center justify-between lg:flex-col lg:items-start lg:justify-start">
+                    <p className="text-sm text-gray-600 mb-0 lg:mb-1">
                       Total Outstanding Balance
                     </p>
                     <p className="text-2xl font-bold text-aj-danger">
                       ₦{totalOwed.toLocaleString()}
                     </p>
                   </div>
-                  <div className="p-4 bg-gray-50 rounded-lg">
-                    <p className="text-sm text-gray-600 mb-1">
+                  <div className="p-4 bg-gray-50 rounded-lg flex flex-row items-center justify-between lg:flex-col lg:items-start lg:justify-start">
+                    <p className="text-sm text-gray-600 mb-0 lg:mb-1">
                       Departments Cleared
                     </p>
                     <p className="text-xl font-bold text-aj-success">
@@ -712,7 +733,7 @@ export default function App() {
 
                 <div className="flex flex-col justify-center">
                   <Button
-                    className="bg-aj-accent text-white hover:bg-aj-accent/90 font-semibold"
+                    className="bg-aj-accent text-white hover:bg-aj-accent/90 hover:text-white font-semibold"
                     disabled={progressPercentage < 100}
                     size="lg"
                     onClick={() => {
@@ -721,7 +742,7 @@ export default function App() {
                       }
                     }}
                   >
-                    <Shield className="h-5 w-5 mr-2" />
+                    <Shield className="h-6 w-5" />
                     {progressPercentage === 100
                       ? "Generate Clearance Slip"
                       : "Complete All Clearances"}
@@ -749,7 +770,7 @@ export default function App() {
               </p>
               <Button
                 onClick={() => setUploadModalOpen(true)}
-                className="bg-aj-accent text-white hover:bg-aj-accent/90 font-semibold"
+                className="bg-aj-accent text-white hover:bg-aj-accent/90 hover:text-white font-semibold"
                 size="lg"
               >
                 <Upload className="h-5 w-5 mr-2" />
@@ -760,16 +781,56 @@ export default function App() {
         </Card>
 
         {/* Clearance Status Cards */}
+        <div className="mb-6 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+          <h2 className="text-xl font-semibold text-aj-primary">
+            Clearance Units
+          </h2>
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Priority Legend */}
+            <div className="flex items-center space-x-4 text-xs text-gray-500 bg-white px-3 py-1.5 rounded-full border shadow-sm">
+              <span className="font-medium">Priority:</span>
+              <div className="flex items-center space-x-1">
+                <div className="w-2 h-2 bg-aj-danger rounded-full" />
+                <span>High</span>
+              </div>
+              <div className="flex items-center space-x-1">
+                <div className="w-2 h-2 bg-aj-warning rounded-full" />
+                <span>Medium</span>
+              </div>
+              <div className="flex items-center space-x-1">
+                <div className="w-2 h-2 bg-aj-success rounded-full" />
+                <span>Low</span>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-gray-500">Filter by status:</span>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[180px] bg-white">
+                  <SelectValue placeholder="All Status" />
+                </SelectTrigger>
+                <SelectContent className="bg-white">
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="cleared">Cleared</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                  <SelectItem value="submit_receipt">Submit Receipt</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          {clearanceUnits.map((unit) => {
+          {filteredUnits.map((unit) => {
             const IconComponent = unit.icon;
             return (
               <Card key={unit.id} className="relative overflow-hidden">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center space-x-3">
-                      <div className="p-2 rounded-lg bg-aj-primary">
-                        <IconComponent className="h-6 w-6 text-white" />
+                      <div className="p-2 rounded-lg">
+                        <IconComponent className="h-6 w-6 text-aj-primary" />
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center space-x-2">
@@ -778,9 +839,6 @@ export default function App() {
                           </h3>
                           {getPriorityDot(unit.priority)}
                         </div>
-                        <p className="text-sm text-gray-500">
-                          {unit.description}
-                        </p>
                       </div>
                     </div>
                     {getStatusBadge(unit.status)}
@@ -795,14 +853,14 @@ export default function App() {
                     </div>
                   )}
 
-                  {unit.amountOwed > 0 && (
+                  {/* {unit.amountOwed > 0 && (
                     <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-md">
                       <p className="text-sm text-orange-700">
                         <strong>Amount Owed:</strong> ₦
                         {unit.amountOwed.toLocaleString()}
                       </p>
                     </div>
-                  )}
+                  )} */}
                 </CardContent>
               </Card>
             );
@@ -875,34 +933,68 @@ export default function App() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium">New Password</label>
-              <Input
-                type="password"
-                value={passwordData.newPassword}
-                onChange={(e) =>
-                  setPasswordData((prev) => ({
-                    ...prev,
-                    newPassword: e.target.value,
-                  }))
-                }
-                placeholder="Enter new password"
-              />
+              <label className="text-sm font-medium mb-1 block">
+                New Password
+              </label>
+              <div className="relative">
+                <Input
+                  type={showNewPassword ? "text" : "password"}
+                  value={passwordData.newPassword}
+                  onChange={(e) =>
+                    setPasswordData((prev) => ({
+                      ...prev,
+                      newPassword: e.target.value,
+                    }))
+                  }
+                  placeholder="Enter new password"
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                >
+                  {showNewPassword ? (
+                    <EyeOff className="h-4 w-4 text-gray-500" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-gray-500" />
+                  )}
+                </Button>
+              </div>
             </div>
             <div>
-              <label className="text-sm font-medium">
+              <label className="text-sm font-medium mb-1 block">
                 Confirm New Password
               </label>
-              <Input
-                type="password"
-                value={passwordData.confirmPassword}
-                onChange={(e) =>
-                  setPasswordData((prev) => ({
-                    ...prev,
-                    confirmPassword: e.target.value,
-                  }))
-                }
-                placeholder="Confirm new password"
-              />
+              <div className="relative">
+                <Input
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={passwordData.confirmPassword}
+                  onChange={(e) =>
+                    setPasswordData((prev) => ({
+                      ...prev,
+                      confirmPassword: e.target.value,
+                    }))
+                  }
+                  placeholder="Confirm new password"
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff className="h-4 w-4 text-gray-500" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-gray-500" />
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
           <DialogFooter>

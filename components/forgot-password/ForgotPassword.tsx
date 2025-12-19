@@ -80,7 +80,7 @@ const ForgotPassword: React.FC = () => {
 
               <Button
                 type="submit"
-                className="w-full h-12 bg-aj-accent text-white hover:bg-aj-accent/90 font-semibold text-base"
+                className="w-full h-12 bg-aj-accent text-white hover:bg-aj-accent/90 hover:text-white font-semibold text-base"
                 disabled={isLoading}
               >
                 {isLoading ? "Sending..." : "Send Reset Link"}
@@ -102,7 +102,7 @@ const ForgotPassword: React.FC = () => {
                 <Button
                   type="button"
                   variant="link"
-                  className="text-blue-600 text-sm flex items-center justify-center mx-auto"
+                  className="text-aj-primary/90 text-sm flex items-center justify-center mx-auto hover:underline"
                   onClick={() => router.push("/")}
                 >
                   <ArrowLeft className="h-4 w-4 mr-1" />
