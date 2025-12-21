@@ -230,14 +230,18 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
 
       const { data: clearanceData, error: clearanceError } = await supabase
         .from("clearance_status")
-        .select("*, departments(*)")
-        .eq("student_id", studentData.id);
+        .select("*, units(*)")
+        .eq("user_id", studentData.user_id);
 
       if (clearanceError) {
         alert("Error fetching clearance status.");
         setClearanceStatus(null);
       } else {
-        setClearanceStatus(clearanceData);
+        // Filter out ICT
+        const filteredData = (clearanceData || []).filter(
+          (item: any) => item.units?.name !== "ICT"
+        );
+        setClearanceStatus(filteredData);
       }
     } catch (error: any) {
       alert(`An error occurred: ${error.message}`);
@@ -271,12 +275,8 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
         await supabase.storage.from("receipts").remove([receipt.file_path]);
       }
 
-      // Also update the corresponding clearance status
-      await supabase
-        .from("clearance_status")
-        .update({ status: action === "approve" ? "Cleared" : "rejected" })
-        .eq("student_id", data.student_id)
-        .eq("unit_id", data.unitId);
+      // Note: clearance_status is updated automatically by a database trigger
+      // when a receipt is approved.
 
       // Refresh receipts list
       setReceipts((prev) => prev.filter((r) => r.id !== receiptId));

@@ -4,6 +4,10 @@ This document details the purpose and functionality of the root-level SQL script
 
 ## Files
 
+### All SQL scripts in the `tables` folder are used to create the tables in the database.
+
+---
+
 ### `create_multi_unit_clearance_function.sql`
 
 **Purpose**: Automates the clearance process when a fee receipt is approved.

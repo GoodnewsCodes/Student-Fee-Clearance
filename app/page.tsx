@@ -129,8 +129,16 @@ export default function App() {
       }
       // Role-based routing
       if (profile.role === "student") {
+        // Fetch student record to get student_id
+        const { data: student } = await supabase
+          .from("students")
+          .select("id")
+          .eq("user_id", userAuth.id)
+          .single();
+
         setCurrentUser({
           id: userAuth.id,
+          studentId: student?.id,
           name: profile.name,
           trackNo: profile.track_no,
           role: "student",
@@ -237,15 +245,17 @@ export default function App() {
       return;
     }
 
-    const mapped = (data || []).map((item: any) => ({
-      id: item.units?.id || item.id,
-      name: item.units?.name || "Unknown",
-      icon: getUnitIcon(item.units?.name || "Unknown"),
-      status: (item.status || "pending").toLowerCase(),
-      amountOwed: item.amount_owed || 0,
-      priority: item.units?.priority || "medium",
-      rejectionReason: item.rejection_reason || "",
-    }));
+    const mapped = (data || [])
+      .filter((item: any) => item.units?.name !== "ICT")
+      .map((item: any) => ({
+        id: item.units?.id || item.id,
+        name: item.units?.name || "Unknown",
+        icon: getUnitIcon(item.units?.name || "Unknown"),
+        status: (item.status || "pending").toLowerCase(),
+        amountOwed: item.amount_owed || 0,
+        priority: item.units?.priority || "medium",
+        rejectionReason: item.rejection_reason || "",
+      }));
 
     console.log("Mapped clearance units:", mapped);
     setClearanceUnits(mapped);
@@ -268,7 +278,7 @@ export default function App() {
           event: "*",
           schema: "public",
           table: "clearance_status",
-          filter: `student_id=eq.${currentUser.id}`,
+          filter: `user_id=eq.${currentUser.id}`,
         },
         (payload) => {
           console.log("Clearance status updated:", payload);
@@ -309,7 +319,7 @@ export default function App() {
         const { data } = await supabase
           .from("receipts")
           .select(`*, fees!receipts_fee_id_fkey (name)`)
-          .eq("student_id", currentUser.id)
+          .eq("student_id", currentUser.studentId)
           .eq("status", "rejected");
 
         setRejectedReceipts(data || []);

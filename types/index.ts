@@ -95,7 +95,7 @@ export interface ClearanceStatus {
   id: string;
   student_id: string;
   unit_id: string;
-  status: "Cleared" | "Pending" | "rejected";
+  status: "cleared" | "pending" | "submit_receipt" | "rejected";
   updated_at: string;
   // Optional: to hold joined data
   departments?: Department;

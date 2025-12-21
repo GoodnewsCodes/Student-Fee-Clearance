@@ -173,13 +173,15 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
             .select("user_id, name, track_no")
             .in("user_id", userIds);
 
-          // Merge the data
-          const mergedData = data.map((item) => ({
-            ...item,
-            profiles: profilesData?.find(
-              (profile) => profile.user_id === item.user_id
-            ),
-          }));
+          // Merge and filter out ICT
+          const mergedData = data
+            .filter((item) => item.units?.name !== "ICT")
+            .map((item) => ({
+              ...item,
+              profiles: profilesData?.find(
+                (profile) => profile.user_id === item.user_id
+              ),
+            }));
 
           console.log("Successfully fetched clearance statuses:", mergedData);
           setClearanceStatuses(mergedData as any);
@@ -228,7 +230,7 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
 
   const handleUpdateStatus = async (
     id: string,
-    newStatus: "Cleared" | "Pending" | "rejected"
+    newStatus: "cleared" | "pending" | "submit_receipt" | "rejected"
   ) => {
     setUpdatingStatusId(id);
     const { error } = await supabase
@@ -273,22 +275,8 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
       // Optimistically update UI
       setReceipts(receipts.filter((r) => r.id !== receiptId));
 
-      // If approved, update clearance status
-      if (action === "approve" && data && data.length > 0) {
-        const receiptData = data[0];
-        const { error: updateError } = await supabase
-          .from("clearance_status")
-          .update({ status: "Cleared" })
-          .eq("student_id", receiptData.student_id)
-          .eq("unit_id", receiptData.unit_id);
-
-        if (updateError) {
-          alert(
-            "Receipt approved, but failed to update clearance status: " +
-              updateError.message
-          );
-        }
-      }
+      // Note: clearance_status is updated automatically by a database trigger
+      // when a receipt is approved.
     } catch (error: any) {
       console.error("Error processing receipt:", error);
       alert(`Error: ${error.message}`);
