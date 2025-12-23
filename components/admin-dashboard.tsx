@@ -46,6 +46,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { NewSemesterDialog } from "@/components/admin/new-semester-dialog";
 
 interface ReceiptWithStudent extends Receipt {
   students: StudentProfile;
@@ -90,6 +91,10 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
   const [showDefaultPassword, setShowDefaultPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [semesters, setSemesters] = useState<any[]>([]);
+  const [selectedSemesterId, setSelectedSemesterId] = useState<string | null>(
+    null
+  );
 
   const handleChangePassword = async () => {
     if (passwordData.newPassword !== passwordData.confirmPassword) {
@@ -115,6 +120,22 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
       setIsChangingPassword(false);
     }
   };
+
+  useEffect(() => {
+    const fetchSemesters = async () => {
+      const { data } = await supabase
+        .from("semesters")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (data) {
+        setSemesters(data);
+        const current = data.find((s) => s.is_current);
+        if (current) setSelectedSemesterId(current.id);
+        else if (data.length > 0) setSelectedSemesterId(data[0].id);
+      }
+    };
+    fetchSemesters();
+  }, []);
 
   useEffect(() => {
     // Fetch initial data
@@ -396,6 +417,9 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
               >
                 {getUnitTitle(user.unit)}
               </Badge>
+              {(user.unit === "bursary" || user.unit === "accounts") && (
+                <NewSemesterDialog />
+              )}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -456,6 +480,26 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
       </nav>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {semesters.length > 0 && (
+          <div className="flex justify-end mb-4">
+            <div className="flex items-center gap-2 bg-white p-2 rounded-lg border shadow-sm">
+              <span className="text-sm font-medium text-gray-700">
+                Academic Period:
+              </span>
+              <select
+                value={selectedSemesterId || ""}
+                onChange={(e) => setSelectedSemesterId(e.target.value)}
+                className="text-sm border-none focus:ring-0 bg-transparent font-semibold text-aj-primary"
+              >
+                {semesters.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.session} - {s.semester}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
         <Tabs defaultValue="verification" className="w-full">
           <TabsList className={`grid w-full grid-cols-${tabsConfig.length}`}>
             {tabsConfig.map((tab) => (
@@ -466,12 +510,18 @@ export function AdminDashboard({ user, onLogout }: AdminDashboardProps) {
           </TabsList>
 
           <TabsContent value="verification">
-            <VerificationScreen user={user} />
+            <VerificationScreen
+              user={user}
+              externalSemesterId={selectedSemesterId}
+            />
           </TabsContent>
 
           {(user.unit === "bursary" || user.unit === "accounts") && (
             <TabsContent value="receipts">
-              <ReceiptReviewScreen user={user} />
+              <ReceiptReviewScreen
+                user={user}
+                externalSemesterId={selectedSemesterId}
+              />
             </TabsContent>
           )}
 

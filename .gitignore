@@ -38,5 +38,5 @@ next-env.d.ts
 Thumbs.db
 
 # database
-.sqlite
-.sql
+*.sqlite
+# *.sql

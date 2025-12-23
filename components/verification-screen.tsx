@@ -72,7 +72,13 @@ const debugDatabase = async () => {
   console.log("All student profiles:", profiles);
 };
 
-export function VerificationScreen({ user }: { user: any }) {
+export function VerificationScreen({
+  user,
+  externalSemesterId,
+}: {
+  user: any;
+  externalSemesterId?: string | null;
+}) {
   const [searchTrackNo, setSearchTrackNo] = useState("");
   const [searchResult, setSearchResult] = useState<any>(null);
   const [clearanceData, setClearanceData] = useState<any[]>([]);
@@ -88,6 +94,10 @@ export function VerificationScreen({ user }: { user: any }) {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [isClearingManually, setIsClearingManually] = useState<string | null>(
+    null
+  );
+  const [semesters, setSemesters] = useState<any[]>([]);
+  const [selectedSemesterId, setSelectedSemesterId] = useState<string | null>(
     null
   );
 
@@ -114,7 +124,34 @@ export function VerificationScreen({ user }: { user: any }) {
 
   useEffect(() => {
     debugDatabase();
-  }, []);
+    if (!externalSemesterId) {
+      const fetchSemesters = async () => {
+        const { data } = await supabase
+          .from("semesters")
+          .select("*")
+          .order("created_at", { ascending: false });
+        if (data) {
+          setSemesters(data);
+          const current = data.find((s) => s.is_current);
+          if (current) setSelectedSemesterId(current.id);
+          else if (data.length > 0) setSelectedSemesterId(data[0].id);
+        }
+      };
+      fetchSemesters();
+    }
+  }, [externalSemesterId]);
+
+  useEffect(() => {
+    if (externalSemesterId) {
+      setSelectedSemesterId(externalSemesterId);
+    }
+  }, [externalSemesterId]);
+
+  useEffect(() => {
+    if (searchResult) {
+      handleSearch();
+    }
+  }, [selectedSemesterId]);
 
   const handleSearch = async () => {
     if (!searchTrackNo.trim()) return;
@@ -151,10 +188,16 @@ export function VerificationScreen({ user }: { user: any }) {
           .neq("name", "ICT");
 
         // Fetch clearance data using user_id
-        const { data: clearanceRecords, error: clearanceError } = await supabase
+        let query = supabase
           .from("clearance_status")
           .select(`*, units (*)`)
           .eq("user_id", student.user_id);
+
+        if (selectedSemesterId) {
+          query = query.eq("semester_id", selectedSemesterId);
+        }
+
+        const { data: clearanceRecords, error: clearanceError } = await query;
 
         console.log("Clearance records:", { clearanceRecords, clearanceError });
 
@@ -168,7 +211,7 @@ export function VerificationScreen({ user }: { user: any }) {
               id: `virtual-${unit.id}`,
               user_id: student.user_id,
               unit_id: unit.id,
-              status: "pending",
+              status: "submit_receipt",
               units: unit,
             }
           );
@@ -177,12 +220,19 @@ export function VerificationScreen({ user }: { user: any }) {
         setClearanceData(mergedClearanceData);
 
         // Fetch receipts using student.id (exclude rejected ones)
-        const { data: receiptsData, error: receiptsError } = await supabase
+        let receiptsQuery = supabase
           .from("receipts")
           .select(`*, fees!receipts_fee_id_fkey (name, amount, unit)`)
           .eq("student_id", student.id)
           .neq("status", "rejected")
           .order("uploaded_at", { ascending: false });
+
+        if (selectedSemesterId) {
+          receiptsQuery = receiptsQuery.eq("semester_id", selectedSemesterId);
+        }
+
+        const { data: receiptsData, error: receiptsError } =
+          await receiptsQuery;
 
         console.log("Receipts data:", { receiptsData, receiptsError });
         setReceipts(receiptsError ? [] : (receiptsData as any) || []);
@@ -231,7 +281,7 @@ export function VerificationScreen({ user }: { user: any }) {
               id: `virtual-${unit.id}`,
               user_id: profile.user_id,
               unit_id: unit.id,
-              status: "pending",
+              status: "submit_receipt",
               units: unit,
             }
           );
@@ -300,18 +350,17 @@ export function VerificationScreen({ user }: { user: any }) {
   };
 
   const handleManualClearance = async (statusId: string, unitName: string) => {
+    const item = clearanceData.find((d) => d.id === statusId);
+    if (!item || !searchResult) return;
+
     setIsClearingManually(statusId);
     try {
-      const isVirtual = statusId.startsWith("virtual-");
-      const unitId = isVirtual ? statusId.replace("virtual-", "") : null;
-
       const { data: updatedData, error } = await supabase
         .from("clearance_status")
         .upsert(
           {
-            ...(isVirtual
-              ? { user_id: searchResult.user_id, unit_id: unitId }
-              : { id: statusId }),
+            user_id: item.user_id,
+            unit_id: item.unit_id,
             status: "cleared",
             updated_at: new Date().toISOString(),
           },
@@ -369,11 +418,32 @@ export function VerificationScreen({ user }: { user: any }) {
       </CardHeader>
       <CardContent>
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
-          <Input
-            placeholder="Enter track number or name (e.g., 23/132025 or John Doe)"
-            value={searchTrackNo}
-            onChange={(e) => setSearchTrackNo(e.target.value)}
-          />
+          <div className="flex-1">
+            <Input
+              placeholder="Enter track number or name (e.g., 23/132025 or John Doe)"
+              value={searchTrackNo}
+              onChange={(e) => setSearchTrackNo(e.target.value)}
+            />
+          </div>
+          {!externalSemesterId && semesters.length > 0 && (
+            <div className="w-full sm:w-64">
+              <Select
+                value={selectedSemesterId || ""}
+                onValueChange={setSelectedSemesterId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Semester" />
+                </SelectTrigger>
+                <SelectContent>
+                  {semesters.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.session} - {s.semester}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <Button
             onClick={handleSearch}
             className="w-full sm:w-auto flex items-center justify-center hover:text-white"
@@ -441,7 +511,19 @@ export function VerificationScreen({ user }: { user: any }) {
                           name: item.units?.name || "Unknown",
                           status: item.status,
                         }));
-                        generateClearanceSlip(studentData, mappedUnits as any);
+                        const semester = semesters.find(
+                          (s) => s.id === selectedSemesterId
+                        );
+                        generateClearanceSlip(
+                          studentData,
+                          mappedUnits as any,
+                          semester
+                            ? {
+                                session: semester.session,
+                                semester: semester.semester,
+                              }
+                            : undefined
+                        );
                       }}
                       className="bg-aj-accent text-white hover:bg-aj-accent/90 font-semibold"
                     >
@@ -585,7 +667,7 @@ export function VerificationScreen({ user }: { user: any }) {
                                             status.units?.name
                                           )
                                         }
-                                        className="bg-aj-primary text-white hover:bg-aj-primary/90"
+                                        className="bg-aj-primary text-white hover:bg-aj-primary/90 hover:text-white"
                                       >
                                         Confirm Clearance
                                       </AlertDialogAction>

@@ -85,6 +85,62 @@ export default function App() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [rejectedReceipts, setRejectedReceipts] = useState<any[]>([]);
+  const [semesters, setSemesters] = useState<any[]>([]);
+  const [selectedSemesterId, setSelectedSemesterId] = useState<string | null>(
+    null
+  );
+  const [studentStats, setStudentStats] = useState({
+    cleared: 0,
+    pending: 0,
+    rejected: 0,
+  });
+
+  useEffect(() => {
+    const fetchStudentStats = async () => {
+      if (!currentUser?.studentId) return;
+
+      const { data, error } = await supabase
+        .from("students")
+        .select("cleared_count, pending_count, rejected_count")
+        .eq("id", currentUser.studentId)
+        .single();
+
+      if (data) {
+        setStudentStats({
+          cleared: data.cleared_count || 0,
+          pending: data.pending_count || 0,
+          rejected: data.rejected_count || 0,
+        });
+      }
+    };
+
+    fetchStudentStats();
+
+    // Subscribe to changes in students table for real-time updates
+    const channel = supabase
+      .channel("student-stats-updates")
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "students",
+          filter: `id=eq.${currentUser?.studentId}`,
+        },
+        (payload: any) => {
+          setStudentStats({
+            cleared: payload.new.cleared_count || 0,
+            pending: payload.new.pending_count || 0,
+            rejected: payload.new.rejected_count || 0,
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUser?.studentId]);
 
   // Helper: map unit/department name to icon
   const unitIconMap: Record<string, React.ElementType> = {
@@ -222,13 +278,24 @@ export default function App() {
   const fetchClearance = async () => {
     if (!currentUser || currentUser.role !== "student") return;
 
-    console.log("Fetching clearance for user:", currentUser.id);
+    console.log(
+      "Fetching clearance for user:",
+      currentUser.id,
+      "semester:",
+      selectedSemesterId
+    );
     setLoading(true);
 
-    const { data, error } = await supabase
+    let query = supabase
       .from("clearance_status")
       .select(`*, units (id, name, priority)`)
       .eq("user_id", currentUser.id);
+
+    if (selectedSemesterId) {
+      query = query.eq("semester_id", selectedSemesterId);
+    }
+
+    const { data, error } = await query;
 
     console.log("Clearance query result:", { data, error });
 
@@ -265,7 +332,27 @@ export default function App() {
   // ALL useEffect hooks must be here, before any conditional returns
   useEffect(() => {
     fetchClearance();
-  }, [currentUser]);
+  }, [currentUser, selectedSemesterId]);
+
+  useEffect(() => {
+    const fetchSemesters = async () => {
+      const { data, error } = await supabase
+        .from("semesters")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (data) {
+        setSemesters(data);
+        const current = data.find((s) => s.is_current);
+        if (current) {
+          setSelectedSemesterId(current.id);
+        } else if (data.length > 0) {
+          setSelectedSemesterId(data[0].id);
+        }
+      }
+    };
+    fetchSemesters();
+  }, []);
 
   useEffect(() => {
     if (!currentUser || currentUser.role !== "student") return;
@@ -305,7 +392,7 @@ export default function App() {
       if (newCleared.length > 0) {
         setNotifications((prev) => [
           ...prev,
-          `${newCleared[0].name} clearance approved!`,
+          `${newCleared[0]?.name || "Unit"} clearance approved!`,
         ]);
       }
     }
@@ -316,11 +403,17 @@ export default function App() {
   useEffect(() => {
     const fetchRejectedReceipts = async () => {
       if (currentUser?.role === "student") {
-        const { data } = await supabase
+        let query = supabase
           .from("receipts")
           .select(`*, fees!receipts_fee_id_fkey (name)`)
           .eq("student_id", currentUser.studentId)
           .eq("status", "rejected");
+
+        if (selectedSemesterId) {
+          query = query.eq("semester_id", selectedSemesterId);
+        }
+
+        const { data } = await query;
 
         setRejectedReceipts(data || []);
       }
@@ -329,7 +422,7 @@ export default function App() {
     if (currentUser) {
       fetchRejectedReceipts();
     }
-  }, [currentUser]);
+  }, [currentUser, selectedSemesterId]);
 
   // NOW you can have conditional returns
   if (!currentUser) {
@@ -427,15 +520,9 @@ export default function App() {
     return null;
   };
 
-  const clearedCount = clearanceUnits.filter(
-    (unit) => unit.status === "cleared"
-  ).length;
-  const pendingCount = clearanceUnits.filter(
-    (unit) => unit.status === "pending"
-  ).length;
-  const rejectedCount = clearanceUnits.filter(
-    (unit) => unit.status === "rejected"
-  ).length;
+  const clearedCount = studentStats.cleared;
+  const pendingCount = studentStats.pending;
+  const rejectedCount = studentStats.rejected;
   const submitReceiptCount = clearanceUnits.filter(
     (unit) => unit.status === "submit_receipt"
   ).length;
@@ -560,7 +647,29 @@ export default function App() {
                 Track No: {currentUser.trackNo}
               </p>
             </div>
-            <div className="mt-4 lg:mt-0">
+            <div className="mt-4 lg:mt-0 flex flex-col items-end gap-2">
+              {semesters.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-700">
+                    Semester:
+                  </span>
+                  <Select
+                    value={selectedSemesterId || ""}
+                    onValueChange={setSelectedSemesterId}
+                  >
+                    <SelectTrigger className="w-[200px] bg-white">
+                      <SelectValue placeholder="Select Semester" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {semesters.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.session} - {s.semester}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="flex items-center space-x-2 text-sm text-gray-500">
                 <Calendar className="h-4 w-4" />
                 <span>Last updated: {new Date().toLocaleDateString()}</span>
@@ -748,7 +857,19 @@ export default function App() {
                     size="lg"
                     onClick={() => {
                       if (progressPercentage === 100) {
-                        generateClearanceSlip(currentUser, clearanceUnits);
+                        const semester = semesters.find(
+                          (s) => s.id === selectedSemesterId
+                        );
+                        generateClearanceSlip(
+                          currentUser,
+                          clearanceUnits,
+                          semester
+                            ? {
+                                session: semester.session,
+                                semester: semester.semester,
+                              }
+                            : undefined
+                        );
                       }
                     }}
                   >

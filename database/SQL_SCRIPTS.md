@@ -1,48 +1,29 @@
 # SQL Scripts Documentation
 
-This document details the purpose and functionality of the root-level SQL scripts used for database management and population.
+This document details the database schema and security policies for the Student Fee Clearance system.
 
-## Files
+## Table Definitions (`database/tables/`)
 
-### All SQL scripts in the `tables` folder are used to create the tables in the database.
+1.  **`profiles.sql`**: Defines user profiles (students and staff).
+2.  **`students.sql`**: Stores student-specific data linked to profiles.
+3.  **`units.sql`**: Defines administrative units (Bursary, Library, etc.).
+4.  **`fees.sql`**: Defines various fees and their associated units.
+5.  **`receipts.sql`**: Tracks student receipt uploads and approvals.
+6.  **`clearance_status.sql`**: Tracks clearance progress for each student/unit pair.
+7.  **`notifications.sql`**: Manages system notifications for students.
+8.  **`fee_units_mappings.sql`**: Junction table for mapping fees to multiple units (Table: `fee_unit_mappings`).
+9.  **`semesters.sql`**: Stores academic sessions and semesters.
 
----
+## Security Policies (`database/policies/`)
 
-### `create_multi_unit_clearance_function.sql`
+All tables have Row Level Security (RLS) enabled. The following scripts define the access control:
 
-**Purpose**: Automates the clearance process when a fee receipt is approved.
-
-- **Function**: `clear_units_for_approved_receipt()`
-  - Triggered after an update on the `receipts` table.
-  - Checks if the status changed to `approved`.
-  - Updates the `clearance_status` table to set `status = 'cleared'` for all units associated with the approved fee.
-- **Trigger**: `trigger_clear_units_on_receipt_approval` on `receipts` table.
-
-### `populate_clearance_direct.sql`
-
-**Purpose**: Seeds initial clearance status records for students based on their profile.
-
-- **Logic**:
-  - Inserts records into `clearance_status` for every student-unit combination.
-  - Sets initial status and amount owed based on the unit:
-    - **Bursary**: 50,000 (Status: `submit_receipt`)
-    - **Library**: 5,000 (Status: `submit_receipt`)
-    - **Hospital**: 10,000 (Status: `submit_receipt`)
-    - **Others**: 0 (Status: `pending`)
-
-### `populate_clearance_status.sql`
-
-**Purpose**: A simpler version of clearance population.
-
-- **Logic**:
-  - Creates a `Pending` clearance status record for every student across _all_ defined units in the `units` table.
-  - Uses a `CROSS JOIN` between `students` and `units`.
-
-### `populate_students.sql`
-
-**Purpose**: Syncs student data from the `profiles` table to the `students` table.
-
-- **Logic**:
-  - Selects all users with `role = 'student'` from `profiles`.
-  - Inserts their `user_id`, `name`, `track_no`, and `email` into the `students` table.
-  - Useful for ensuring the `students` table is populated if users were created only in `profiles`.
+1.  **`profiles.sql`**: Users can manage their own profiles; staff can read all.
+2.  **`students.sql`**: Students read own; staff read all.
+3.  **`units.sql`**: Public read for authenticated users.
+4.  **`fees.sql`**: Public read for authenticated users; bursary staff manage.
+5.  **`receipts.sql`**: Students manage own; staff read/update all.
+6.  **`clearance_status_policies.sql`**: Students read own; staff manage all.
+7.  **`notifications.sql`**: Students read own; staff manage all.
+8.  **`fee_units_mappings.sql`**: Public read for authenticated users; staff manage (Table: `fee_unit_mappings`).
+9.  **`semesters.sql`**: Public read for authenticated users; authorized staff manage.

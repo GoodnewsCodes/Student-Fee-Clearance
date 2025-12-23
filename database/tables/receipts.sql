@@ -1,6 +1,7 @@
 create table public.receipts (
   id uuid not null default gen_random_uuid (),
   student_id uuid not null,
+  semester_id uuid null references public.semesters(id),
   "imageUrl" text not null,
   status character varying(20) not null default 'pending'::character varying,
   amount numeric null,

@@ -2,41 +2,34 @@
 
 This directory contains SQL scripts for defining the database schema and initial data.
 
-## Files
+## Tables (`database/tables/`)
 
-### `schema.sql`
+1.  **`profiles`**: User profiles for students and staff.
+2.  **`students`**: Student-specific information linked to profiles.
+3.  **`units`**: Administrative units (e.g., Bursary, Library).
+4.  **`fees`**: Fee definitions and their associated units.
+5.  **`receipts`**: Student receipt uploads and approval status.
+6.  **`clearance_status`**: Clearance progress for student/unit pairs.
+7.  **`notifications`**: System notifications for students.
+8.  **`fee_unit_mappings`**: Junction table for mapping fees to multiple units.
+9.  **`semesters`**: Academic sessions and semesters.
 
-The main schema definition file. It sets up the core tables, relationships, and security policies.
+## Security (RLS) (`database/policies/`)
 
-#### Tables
+Row Level Security is enabled on all tables to ensure data privacy and integrity.
 
-1. **`units`**: Stores administrative units (e.g., Bursary, Library).
-2. **`students`**: Stores student profile information, linked to Auth users.
-3. **`receipts`**: Stores payment receipt metadata, linked to students and fees.
-4. **`clearance_status`**: Tracks the clearance status (Cleared/Pending/Rejected) for a student against a specific unit.
-5. **`fees`** (Referenced): Referenced in receipts, stores fee definitions.
+- **`profiles`**: Users view/edit own; staff view all.
+- **`students`**: Students view own; staff view all.
+- **`units`**: Public read for authenticated users.
+- **`fees`**: Public read for authenticated users; staff manage.
+- **`receipts`**: Students manage own; staff view/update all.
+- **`clearance_status`**: Students view own; staff manage all.
+- **`notifications`**: Students view own; staff manage all.
+- **`fee_unit_mappings`**: Public read for authenticated users; staff manage.
+- **`semesters`**: Public read for authenticated users; authorized staff manage.
 
-#### Security (RLS)
+## Setup Instructions
 
-- **Row Level Security** is enabled on all tables.
-- **Policies**:
-  - `units`: Public read access for authenticated users.
-  - `students`: Users can view their own profile.
-  - `receipts`: Students view their own; Staff/Admins view all. Students can insert their own.
-  - `clearance_status`: Students view their own; Staff/Admins view all. Only Staff/Admins can update.
-
-#### Initial Data
-
-- Inserts default administrative units (ICT, Bursary, Library, etc.) into the `units` table.
-
-### `notifications.sql`
-
-Defines the notification system schema.
-
-#### Table: `notifications`
-
-- **`id`**: UUID primary key.
-- **`student_id`**: Foreign key to `students` table.
-- **`message`**: Content of the notification.
-- **`type`**: Type of notification (e.g., 'info', 'rejection').
-- **`is_read`**: Boolean flag for read status.
+1.  Run all scripts in `database/tables/` to create the schema.
+2.  Run all scripts in `database/policies/` to enable RLS and set access rules.
+3.  (Optional) Run population scripts in the root directory to add initial data.

@@ -23,7 +23,8 @@ const getBase64ImageFromUrl = async (url: string): Promise<string> => {
 
 export const generateClearanceSlip = async (
   student: StudentData,
-  clearanceUnits: ClearanceUnit[]
+  clearanceUnits: ClearanceUnit[],
+  semesterInfo?: { session: string; semester: string }
 ) => {
   const doc = new jsPDF();
 
@@ -91,6 +92,18 @@ export const generateClearanceSlip = async (
   doc.text(`Track No: ${student.trackNo}`, leftColumnX, currentY + 7);
   if (student.department) {
     doc.text(`Department: ${student.department}`, leftColumnX, currentY + 14);
+  }
+  if (semesterInfo) {
+    doc.text(
+      `Session: ${semesterInfo.session}`,
+      rightColumnX - 20,
+      currentY + 7
+    );
+    doc.text(
+      `Semester: ${semesterInfo.semester}`,
+      rightColumnX - 20,
+      currentY + 14
+    );
   }
 
   doc.setFontSize(10);

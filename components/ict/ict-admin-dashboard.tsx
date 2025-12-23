@@ -62,6 +62,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { UserManagement } from "../user-management";
+import { NewSemesterDialog } from "../admin/new-semester-dialog";
 
 // Combined type for user data to be managed in the state
 type UserData = {
@@ -122,6 +123,10 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
   const [showDefaultPassword, setShowDefaultPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [semesters, setSemesters] = useState<any[]>([]);
+  const [selectedSemesterId, setSelectedSemesterId] = useState<string | null>(
+    null
+  );
 
   const handleChangePassword = async () => {
     if (passwordData.newPassword !== passwordData.confirmPassword) {
@@ -147,6 +152,22 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
       setIsChangingPassword(false);
     }
   };
+
+  useEffect(() => {
+    const fetchSemesters = async () => {
+      const { data } = await supabase
+        .from("semesters")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (data) {
+        setSemesters(data);
+        const current = data.find((s) => s.is_current);
+        if (current) setSelectedSemesterId(current.id);
+        else if (data.length > 0) setSelectedSemesterId(data[0].id);
+      }
+    };
+    fetchSemesters();
+  }, []);
 
   // Fetch initial data for receipts and users
   useEffect(() => {
@@ -402,6 +423,7 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
               >
                 ICT Administrator
               </Badge>
+              <NewSemesterDialog />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -462,6 +484,26 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
       </nav>
 
       <main className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+        {semesters.length > 0 && (
+          <div className="flex justify-end mb-4">
+            <div className="flex items-center gap-2 bg-white p-2 rounded-lg border shadow-sm">
+              <span className="text-sm font-medium text-gray-700">
+                Academic Period:
+              </span>
+              <select
+                value={selectedSemesterId || ""}
+                onChange={(e) => setSelectedSemesterId(e.target.value)}
+                className="text-sm border-none focus:ring-0 bg-transparent font-semibold text-aj-primary"
+              >
+                {semesters.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.session} - {s.semester}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
         <Tabs defaultValue="verification" className="w-full">
           <TabsList className="flex w-full gap-2 mb-6 h-auto">
             <TabsTrigger value="verification">
@@ -479,7 +521,10 @@ export function ICTAdminDashboard({ user, onLogout }: ICTAdminDashboardProps) {
           </TabsList>
 
           <TabsContent value="verification">
-            <VerificationScreen user={user} />
+            <VerificationScreen
+              user={user}
+              externalSemesterId={selectedSemesterId}
+            />
           </TabsContent>
 
           <TabsContent value="register">
